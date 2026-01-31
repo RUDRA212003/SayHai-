@@ -1,10 +1,8 @@
 import axios from "axios";
 
-// IMPORTANT:
-// VITE_API_URL must be ONLY the backend origin (NO /api)
-// Example:
-// VITE_API_URL=https://sayhai-backend.onrender.com
-const API_BASE = import.meta.env.VITE_API_URL;
+// IMPORTANT: set `VITE_API_URL` to your backend origin (no trailing `/api`).
+// Example in Vercel/Render environment variables: `VITE_API_URL=https://your-backend.com`
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export const axiosInstance = axios.create({
   baseURL: API_BASE,
