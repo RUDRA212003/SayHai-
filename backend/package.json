@@ -10,7 +10,6 @@
   "type": "module",
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@arcjet/inspect": "^1.0.0-beta.10",
     "@arcjet/node": "^1.0.0-beta.10",
@@ -27,5 +26,6 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
-  }
+  },
+  "description": ""
 }

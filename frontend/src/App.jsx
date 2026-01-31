@@ -5,7 +5,6 @@ import SignUpPage from "./pages/SignUpPage";
 import { useAuthStore } from "./store/useAuthStore";
 import { useEffect } from "react";
 import PageLoader from "./components/PageLoader";
-
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -15,23 +14,55 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
+  // High-end PageLoader should use the Zinc-950 background
   if (isCheckingAuth) return <PageLoader />;
 
   return (
-    <div className="min-h-screen bg-slate-900 relative flex items-center justify-center p-4 overflow-hidden">
-      {/* DECORATORS - GRID BG & GLOW SHAPES */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px]" />
-      <div className="absolute top-0 -left-4 size-96 bg-pink-500 opacity-20 blur-[100px]" />
-      <div className="absolute bottom-0 -right-4 size-96 bg-cyan-500 opacity-20 blur-[100px]" />
-
+    <div className="min-h-screen bg-zinc-950 selection:bg-yellow-500/30 selection:text-yellow-200">
       <Routes>
         <Route path="/" element={authUser ? <ChatPage /> : <Navigate to={"/login"} />} />
         <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to={"/"} />} />
         <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to={"/"} />} />
       </Routes>
 
-      <Toaster />
+      {/* NOIR INDUSTRIAL TOASTER */}
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          style: {
+            background: '#09090b', // Zinc-950
+            color: '#f4f4f5',      // Zinc-100
+            border: '1px solid #27272a', // Zinc-800
+            fontSize: '12px',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            boxShadow: '0 20px 40px -10px rgba(0,0,0,0.7)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#eab308', // Yellow-500
+              secondary: '#09090b',
+            },
+            style: {
+              border: '1px solid rgba(234, 179, 8, 0.2)',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444', // Red-500
+              secondary: '#09090b',
+            },
+            style: {
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+            },
+          },
+        }}
+      />
     </div>
   );
 }
+
 export default App;

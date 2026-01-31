@@ -9,6 +9,7 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   activeTab: "chats",
   selectedUser: null,
+  repliedMessage: null,
   isUsersLoading: false,
   isMessagesLoading: false,
   isSoundEnabled: JSON.parse(localStorage.getItem("isSoundEnabled")) === true,
@@ -57,7 +58,7 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+    const { selectedUser, messages, chats } = get();
     const { authUser } = useAuthStore.getState();
 
     const tempId = `temp-${Date.now()}`;
@@ -68,6 +69,7 @@ export const useChatStore = create((set, get) => ({
       receiverId: selectedUser._id,
       text: messageData.text,
       image: messageData.image,
+      replyTo: messageData.replyTo || null,
       createdAt: new Date().toISOString(),
       isOptimistic: true, // flag to identify optimistic messages (optional)
     };
@@ -76,7 +78,13 @@ export const useChatStore = create((set, get) => ({
 
     try {
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-      set({ messages: messages.concat(res.data) });
+      set({ messages: messages.concat(res.data), repliedMessage: null });
+      
+      // Add or update the chat in chats list
+      const chatExists = chats.some(chat => chat._id === selectedUser._id);
+      if (!chatExists) {
+        set({ chats: [selectedUser, ...chats] });
+      }
     } catch (error) {
       // remove optimistic message on failure
       set({ messages: messages });
@@ -85,7 +93,7 @@ export const useChatStore = create((set, get) => ({
   },
 
   subscribeToMessages: () => {
-    const { selectedUser, isSoundEnabled } = get();
+    const { selectedUser, isSoundEnabled, chats } = get();
     if (!selectedUser) return;
 
     const socket = useAuthStore.getState().socket;
@@ -96,6 +104,12 @@ export const useChatStore = create((set, get) => ({
 
       const currentMessages = get().messages;
       set({ messages: [...currentMessages, newMessage] });
+
+      // Update chats list if sender is not already in chats
+      const chatExists = chats.some(chat => chat._id === selectedUser._id);
+      if (!chatExists) {
+        set({ chats: [selectedUser, ...chats] });
+      }
 
       if (isSoundEnabled) {
         const notificationSound = new Audio("/sounds/notification.mp3");
@@ -109,5 +123,25 @@ export const useChatStore = create((set, get) => ({
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
+  },
+
+  deleteMessage: async (messageId) => {
+    const { messages } = get();
+    try {
+      await axiosInstance.delete(`/messages/${messageId}`);
+      set({ messages: messages.filter((msg) => msg._id !== messageId) });
+      toast.success("Message deleted");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete message");
+    }
+  },
+
+  replyToMessage: (message) => {
+    // This will be used to set the replied message context
+    set({ repliedMessage: message });
+  },
+
+  clearRepliedMessage: () => {
+    set({ repliedMessage: null });
   },
 }));

@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import ChatHeader from "./ChatHeader";
 import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
 import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
+import MessageContextMenu from "./MessageContextMenu";
+import { X, Maximize2, Download } from "lucide-react";
 
 function ChatContainer() {
   const {
@@ -14,58 +16,93 @@ function ChatContainer() {
     isMessagesLoading,
     subscribeToMessages,
     unsubscribeFromMessages,
+    deleteMessage,
+    replyToMessage,
+    repliedMessage,
+    clearRepliedMessage,
   } = useChatStore();
+
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [selectedImg, setSelectedImg] = useState(null);
 
+  // Initial Fetch & Socket Subscription
   useEffect(() => {
     getMessagesByUserId(selectedUser._id);
     subscribeToMessages();
-
-    // clean up
     return () => unsubscribeFromMessages();
-  }, [selectedUser, getMessagesByUserId, subscribeToMessages, unsubscribeFromMessages]);
+  }, [selectedUser._id, getMessagesByUserId, subscribeToMessages, unsubscribeFromMessages]);
 
+  // Auto-scroll to bottom
   useEffect(() => {
     if (messageEndRef.current) {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
+  // Global Key Listeners (Escape for Context Menu and Full Image)
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        setContextMenu(null);
+        setSelectedImg(null);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  const handleRightClick = (e, message) => {
+    e.preventDefault();
+    if (message.senderId === authUser._id) {
+      setContextMenu({ x: e.clientX, y: e.clientY, message });
+    }
+  };
+
   return (
-    <>
+    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
       <ChatHeader />
-      <div className="flex-1 px-6 overflow-y-auto py-8">
+
+      {/* Message List Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-[url('/grid.svg')] bg-fixed">
         {messages.length > 0 && !isMessagesLoading ? (
-          <div className="max-w-3xl mx-auto space-y-6">
-            {messages.map((msg) => (
-              <div
-                key={msg._id}
-                className={`chat ${msg.senderId === authUser._id ? "chat-end" : "chat-start"}`}
-              >
-                <div
-                  className={`chat-bubble relative ${
-                    msg.senderId === authUser._id
-                      ? "bg-cyan-600 text-white"
-                      : "bg-slate-800 text-slate-200"
-                  }`}
-                >
-                  {msg.image && (
-                    <img src={msg.image} alt="Shared" className="rounded-lg h-48 object-cover" />
-                  )}
-                  {msg.text && <p className="mt-2">{msg.text}</p>}
-                  <p className="text-xs mt-1 opacity-75 flex items-center gap-1">
-                    {new Date(msg.createdAt).toLocaleTimeString(undefined, {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
+          <>
+            {messages.map((msg) => {
+              const isMe = msg.senderId === authUser._id;
+              return (
+                <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                  <div
+                    onContextMenu={(e) => handleRightClick(e, msg)}
+                    className={`relative max-w-[80%] md:max-w-md p-3 rounded-2xl transition-all group ${
+                      isMe
+                        ? "bg-yellow-500 text-black rounded-tr-none shadow-[0_4px_20px_rgba(234,179,8,0.15)]"
+                        : "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none shadow-xl"
+                    }`}
+                  >
+                    {msg.image && (
+                      <div 
+                        className="relative mb-2 rounded-lg overflow-hidden cursor-zoom-in group/img"
+                        onClick={() => setSelectedImg(msg.image)}
+                      >
+                        <img src={msg.image} alt="Shared content" className="max-h-72 w-full object-cover transition-transform group-hover/img:scale-105" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                          <Maximize2 className="size-6 text-white" />
+                        </div>
+                      </div>
+                    )}
+                    
+                    {msg.text && <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>}
+                    
+                    <div className={`flex items-center gap-1 mt-1 justify-end opacity-60 text-[10px] font-bold uppercase tracking-tighter ${isMe ? 'text-black/80' : 'text-zinc-500'}`}>
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {/* 👇 scroll target */}
+              );
+            })}
             <div ref={messageEndRef} />
-          </div>
+          </>
         ) : isMessagesLoading ? (
           <MessagesLoadingSkeleton />
         ) : (
@@ -73,8 +110,61 @@ function ChatContainer() {
         )}
       </div>
 
+      {/* Reply UI */}
+      {repliedMessage && (
+        <div className="px-4 py-2 bg-zinc-900/90 backdrop-blur-sm border-t border-yellow-500/20">
+          <div className="flex items-center justify-between bg-zinc-800 p-2 rounded-lg border-l-4 border-yellow-500">
+            <div className="truncate pr-4">
+              <span className="text-[10px] font-black text-yellow-500 uppercase">Replying to</span>
+              <p className="text-sm text-zinc-400 truncate">{repliedMessage.text || "Image"}</p>
+            </div>
+            <button onClick={clearRepliedMessage} className="text-zinc-500 hover:text-white">
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- FULL SCREEN OVERLAY --- */}
+      {selectedImg && (
+        <div 
+          className="fixed inset-0 z-[999] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-300"
+          onClick={() => setSelectedImg(null)}
+        >
+          <div className="flex justify-between p-6">
+            <button className="size-10 flex items-center justify-center bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition-colors">
+               <X className="size-6" />
+            </button>
+            <a 
+              href={selectedImg} 
+              download 
+              onClick={(e) => e.stopPropagation()}
+              className="size-10 flex items-center justify-center bg-yellow-500 rounded-full text-black hover:bg-yellow-400 transition-colors"
+            >
+              <Download className="size-6" />
+            </a>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4">
+            <img 
+              src={selectedImg} 
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95" 
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
+
       <MessageInput />
-    </>
+
+      {contextMenu && (
+        <MessageContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onDelete={() => { deleteMessage(contextMenu.message._id); setContextMenu(null); }}
+          onReply={() => { replyToMessage(contextMenu.message); setContextMenu(null); }}
+        />
+      )}
+    </div>
   );
 }
 

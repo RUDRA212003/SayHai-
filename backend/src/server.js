@@ -13,8 +13,15 @@ const __dirname = path.resolve();
 
 const PORT = ENV.PORT || 3000;
 
-app.use(express.json({ limit: "5mb" })); // req.body
-app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
+app.use(express.json({ limit: "50mb" })); // req.body
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Allow CORS from frontend dev server(s) during development
+if (ENV.NODE_ENV === "development") {
+  app.use(cors({ origin: true, credentials: true }));
+} else {
+  app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
+}
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
