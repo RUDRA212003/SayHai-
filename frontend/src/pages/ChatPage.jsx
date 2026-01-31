@@ -48,10 +48,12 @@ function ChatPage() {
   return (
     <div className={`w-full h-screen bg-zinc-950 flex overflow-hidden ${isResizing ? "select-none cursor-col-resize" : ""}`}>
       
-      {/* LEFT SIDEBAR */}
+      {/* LEFT SIDEBAR - Hidden on mobile when chat is selected */}
       <div 
         style={{ width: `${sidebarWidth}px` }} 
-        className="relative bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0"
+        className={`${
+          selectedUser ? "hidden md:flex" : "flex"
+        } relative bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0`}
       >
         <ProfileHeader />
         <ActiveTabSwitch />
@@ -60,10 +62,10 @@ function ChatPage() {
           {activeTab === "chats" ? <ChatsList /> : <ContactList />}
         </div>
 
-        {/* DRAG HANDLE (The Divider) */}
+        {/* DRAG HANDLE (The Divider) - Only visible on desktop */}
         <div
           onMouseDown={startResizing}
-          className={`absolute top-0 -right-1 w-2 h-full cursor-col-resize z-50 transition-colors group
+          className={`hidden md:block absolute top-0 -right-1 w-2 h-full cursor-col-resize z-50 transition-colors group
             ${isResizing ? "bg-yellow-500/50" : "hover:bg-yellow-500/20"}`}
         >
           {/* Animated Glow Line on Hover */}
@@ -71,8 +73,10 @@ function ChatPage() {
         </div>
       </div>
 
-      {/* MAIN CHAT AREA */}
-      <div className="flex-1 flex flex-col bg-zinc-950/50 relative">
+      {/* MAIN CHAT AREA - Full screen on mobile when chat selected, side-by-side on desktop */}
+      <div className={`${
+        selectedUser ? "w-full" : "hidden md:flex md:flex-1"
+      } flex flex-col bg-zinc-950/50 relative`}>
         {selectedUser ? <ChatContainer /> : <NoConversationPlaceholder />}
       </div>
     </div>
