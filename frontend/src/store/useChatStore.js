@@ -25,7 +25,7 @@ export const useChatStore = create((set, get) => ({
   getAllContacts: async () => {
     set({ isUsersLoading: true });
     try {
-      const res = await axiosInstance.get("/messages/contacts");
+      const res = await axiosInstance.get("/api/messages/contacts");
       set({ allContacts: res.data });
     } catch (error) {
       toast.error(error.response.data.message);
@@ -36,7 +36,7 @@ export const useChatStore = create((set, get) => ({
   getMyChatPartners: async () => {
     set({ isUsersLoading: true });
     try {
-      const res = await axiosInstance.get("/messages/chats");
+      const res = await axiosInstance.get("/api/messages/chats");
       set({ chats: res.data });
     } catch (error) {
       toast.error(error.response.data.message);
@@ -48,7 +48,7 @@ export const useChatStore = create((set, get) => ({
   getMessagesByUserId: async (userId) => {
     set({ isMessagesLoading: true });
     try {
-      const res = await axiosInstance.get(`/messages/${userId}`);
+      const res = await axiosInstance.get(`/api/messages/${userId}`);
       set({ messages: res.data });
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");
@@ -77,7 +77,7 @@ export const useChatStore = create((set, get) => ({
     set({ messages: [...messages, optimisticMessage] });
 
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+      const res = await axiosInstance.post(`/api/messages/send/${selectedUser._id}`, messageData);
       set({ messages: messages.concat(res.data), repliedMessage: null });
       
       // Add or update the chat in chats list
@@ -128,7 +128,7 @@ export const useChatStore = create((set, get) => ({
   deleteMessage: async (messageId) => {
     const { messages } = get();
     try {
-      await axiosInstance.delete(`/messages/${messageId}`);
+      await axiosInstance.delete(`/api/messages/${messageId}`);
       set({ messages: messages.filter((msg) => msg._id !== messageId) });
       toast.success("Message deleted");
     } catch (error) {
