@@ -33,3 +33,25 @@
   @apply px-4 py-2 inline-block bg-cyan-500/10 rounded-lg text-cyan-400
   hover:text-cyan-500 text-sm transition-colors;
 }
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-spin {
+  from {
+    --border-angle: 0deg;
+  }
+  to {
+    --border-angle: 360deg;
+  }
+}
+
+/* Add to your tailwind utilities */
+.animate-border {
+  animation: border-spin 4s linear infinite;
+}
+.epr-category-nav > button.epr-active {
+  filter: sepia(100%) hue-rotate(10deg) saturate(500%) !important; /* Forces yellow-ish tint */
+}

@@ -1,30 +1,66 @@
-import { MessageCircleIcon } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 
 const NoChatHistoryPlaceholder = ({ name }) => {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center p-6">
-      <div className="w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-cyan-400/10 rounded-full flex items-center justify-center mb-5">
-        <MessageCircleIcon className="size-8 text-cyan-400" />
+    <div className="flex flex-col items-center justify-center h-full text-center p-6 bg-zinc-950 animate-in fade-in duration-700">
+      
+      {/* LOGO CONTAINER */}
+      <div className="relative mb-8">
+        <div className="absolute inset-0 bg-yellow-500 blur-3xl opacity-10 rounded-full" />
+        <div className="relative size-24 md:size-32 flex items-center justify-center">
+          {/* Logo from /public/logo.png */}
+          <img 
+            src="/logo.png" 
+            alt="App Logo" 
+            className="size-full object-contain drop-shadow-[0_0_15px_rgba(234,179,8,0.4)]"
+          />
+        </div>
       </div>
-      <h3 className="text-lg font-medium text-slate-200 mb-3">
-        Start your conversation with {name}
-      </h3>
-      <div className="flex flex-col space-y-3 max-w-md mb-5">
-        <p className="text-slate-400 text-sm">
-          This is the beginning of your conversation. Send a message to start chatting!
+
+      {/* TEXT CONTENT */}
+      <div className="max-w-sm">
+        <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter text-zinc-100 mb-2">
+          Initialize Chat / <span className="text-yellow-500">{name}</span>
+        </h3>
+        <p className="text-zinc-500 text-sm font-medium leading-relaxed mb-8">
+          You are entering a secure channel. No prior history detected. 
+          Use the quick links below to transmit your first message.
         </p>
-        <div className="h-px w-32 bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent mx-auto"></div>
       </div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        <button className="px-4 py-2 text-xs font-medium text-cyan-400 bg-cyan-500/10 rounded-full hover:bg-cyan-500/20 transition-colors">
+
+      {/* QUICK ACTIONS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
+        <button 
+          className="flex items-center justify-between px-5 py-3 text-xs font-black uppercase tracking-widest text-black bg-yellow-500 rounded-xl hover:bg-yellow-400 hover:scale-[1.02] transition-all shadow-[0_5px_15px_rgba(234,179,8,0.2)] active:scale-95"
+        >
           👋 Say Hello
+          <MessageSquarePlus className="size-4" />
         </button>
-        <button className="px-4 py-2 text-xs font-medium text-cyan-400 bg-cyan-500/10 rounded-full hover:bg-cyan-500/20 transition-colors">
+
+        <button 
+          className="flex items-center justify-between px-5 py-3 text-xs font-black uppercase tracking-widest text-yellow-500 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 hover:border-yellow-500/30 transition-all"
+        >
           🤝 How are you?
         </button>
-        <button className="px-4 py-2 text-xs font-medium text-cyan-400 bg-cyan-500/10 rounded-full hover:bg-cyan-500/20 transition-colors">
+
+        <button 
+          className="flex items-center justify-between px-5 py-3 text-xs font-black uppercase tracking-widest text-yellow-500 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 hover:border-yellow-500/30 transition-all"
+        >
           📅 Meet up soon?
         </button>
+
+        <button 
+          className="flex items-center justify-between px-5 py-3 text-xs font-black uppercase tracking-widest text-zinc-500 bg-zinc-950 border border-dashed border-zinc-800 rounded-xl hover:text-zinc-300 hover:border-zinc-600 transition-all"
+        >
+          ⌨️ Type Manual
+        </button>
+      </div>
+
+      {/* SYSTEM DECORATION */}
+      <div className="mt-12 flex items-center gap-2 opacity-20">
+        <div className="h-[1px] w-8 bg-yellow-500" />
+        <span className="text-[10px] font-bold text-yellow-500 tracking-[0.3em] uppercase">System Ready</span>
+        <div className="h-[1px] w-8 bg-yellow-500" />
       </div>
     </div>
   );
