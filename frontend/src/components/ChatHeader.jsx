@@ -26,11 +26,12 @@ function ChatHeader() {
   return (
     <header className="sticky top-0 z-20 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800 px-4 py-3 flex justify-between items-center shadow-lg">
       {/* Left Section: User Info */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         {/* Back Button for Mobile */}
         <button 
           onClick={() => setSelectedUser(null)}
-          className="md:hidden p-2 -ml-2 text-zinc-500 hover:text-yellow-500 transition-colors"
+          className="md:hidden p-2 -ml-2 text-zinc-400 hover:text-yellow-500 hover:bg-zinc-800/50 rounded-lg transition-all active:scale-95"
+          title="Back to chats"
         >
           <XIcon className="size-5" />
         </button>
