@@ -7,7 +7,7 @@ export const useChatStore = create((set, get) => ({
   allContacts: [],
   chats: [],
   messages: [],
-  unreadCounts: {}, // New state: { userId: count }
+  unreadCounts: {}, 
   activeTab: "chats",
   selectedUser: null,
   repliedMessage: null,
@@ -22,12 +22,14 @@ export const useChatStore = create((set, get) => ({
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   
-  // Updated to clear unread count when a user is selected
-  setSelectedUser: (selectedUser) => {
+  // UPDATED: Now clears count locally AND notifies backend
+  setSelectedUser: async (selectedUser) => {
     if (!selectedUser) {
       set({ selectedUser: null });
       return;
     }
+
+    // Local update for immediate UI response
     set({ 
       selectedUser,
       unreadCounts: {
@@ -35,6 +37,13 @@ export const useChatStore = create((set, get) => ({
         [selectedUser._id]: 0,
       }
     });
+
+    // Backend update to persist "seen" status
+    try {
+      await axiosInstance.post(`/api/messages/mark-seen/${selectedUser._id}`);
+    } catch (error) {
+      console.error("Error marking messages as seen:", error);
+    }
   },
 
   getAllContacts: async () => {
@@ -49,11 +58,23 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  // UPDATED: Now extracts unread counts from the new backend response
   getMyChatPartners: async () => {
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/api/messages/chats");
-      set({ chats: res.data });
+      const chatData = res.data;
+
+      // Extract unread counts into a map
+      const initialCounts = {};
+      chatData.forEach(user => {
+        initialCounts[user._id] = user.unreadCount || 0;
+      });
+
+      set({ 
+        chats: chatData,
+        unreadCounts: initialCounts 
+      });
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -115,10 +136,10 @@ export const useChatStore = create((set, get) => ({
       const isFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
 
       if (isFromSelectedUser) {
-        // User is currently chatting with sender: Add to messages
         set({ messages: [...messages, newMessage] });
+        // Since chat is open, immediately mark as seen on backend
+        axiosInstance.post(`/api/messages/mark-seen/${selectedUser._id}`);
       } else {
-        // User is NOT chatting with sender: Increment badge count
         set({
           unreadCounts: {
             ...unreadCounts,
@@ -127,11 +148,8 @@ export const useChatStore = create((set, get) => ({
         });
       }
 
-      // Automatically move user to "Recent Chats" if they aren't there
       const senderInChats = chats.some(chat => chat._id === newMessage.senderId);
       if (!senderInChats) {
-        // You might need to fetch user details here or assume the backend sends sender info
-        // For now, we'll wait for the next manual refresh or use the newMessage details
         get().getMyChatPartners(); 
       }
 

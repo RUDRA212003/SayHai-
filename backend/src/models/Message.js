@@ -24,6 +24,11 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
     },
+    // NEW: Tracks if the receiver has opened the chat
+    isSeen: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

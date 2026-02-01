@@ -35,7 +35,6 @@ export const getMessagesByUserId = async (req, res) => {
       if (msgObj.text) {
         msgObj.text = decryptMessage(msgObj.text);
       }
-      // If the message is a reply to another message, try to decrypt the replied message text as well
       if (msgObj.replyTo && msgObj.replyTo.text) {
         try {
           msgObj.replyTo.text = decryptMessage(msgObj.replyTo.text);
@@ -73,7 +72,6 @@ export const sendMessage = async (req, res) => {
     let imageUrl;
     if (image) {
       try {
-        // upload base64 image to cloudinary
         const uploadResponse = await cloudinary.uploader.upload(image, {
           resource_type: "auto",
           folder: "chatify_messages",
@@ -85,7 +83,6 @@ export const sendMessage = async (req, res) => {
       }
     }
 
-    // Encrypt text before saving
     const encryptedText = text ? encryptMessage(text) : null;
 
     const newMessage = new Message({
@@ -94,11 +91,11 @@ export const sendMessage = async (req, res) => {
       text: encryptedText,
       image: imageUrl,
       replyTo: replyTo || null,
+      isSeen: false, // Defaulting to false for new messages
     });
 
     await newMessage.save();
 
-    // Decrypt text before emitting via socket
     const messageToEmit = newMessage.toObject();
     if (messageToEmit.text) {
       messageToEmit.text = decryptMessage(messageToEmit.text);
@@ -120,7 +117,6 @@ export const getChatPartners = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
 
-    // find all the messages where the logged-in user is either sender or receiver
     const messages = await Message.find({
       $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
     });
@@ -137,9 +133,43 @@ export const getChatPartners = async (req, res) => {
 
     const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
 
-    res.status(200).json(chatPartners);
+    // NEW: Calculate unread counts for each partner
+    const chatPartnersWithCounts = await Promise.all(
+      chatPartners.map(async (partner) => {
+        const unreadCount = await Message.countDocuments({
+          senderId: partner._id,
+          receiverId: loggedInUserId,
+          isSeen: false,
+        });
+
+        return {
+          ...partner.toObject(),
+          unreadCount,
+        };
+      })
+    );
+
+    res.status(200).json(chatPartnersWithCounts);
   } catch (error) {
     console.error("Error in getChatPartners: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// NEW: Clear unread status for messages from a specific sender
+export const markMessagesAsSeen = async (req, res) => {
+  try {
+    const { id: userToChatId } = req.params;
+    const myId = req.user._id;
+
+    await Message.updateMany(
+      { senderId: userToChatId, receiverId: myId, isSeen: false },
+      { $set: { isSeen: true } }
+    );
+
+    res.status(200).json({ success: true, message: "Messages marked as seen" });
+  } catch (error) {
+    console.error("Error in markMessagesAsSeen: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -155,7 +185,6 @@ export const deleteMessage = async (req, res) => {
       return res.status(404).json({ message: "Message not found" });
     }
 
-    // Check if the user is the sender of the message
     if (message.senderId.toString() !== userId.toString()) {
       return res.status(403).json({ message: "You can only delete your own messages" });
     }

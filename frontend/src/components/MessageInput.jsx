@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import useKeyboardSound from "../hooks/useKeyboardSound";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore"; // Added to access socket
 import toast from "react-hot-toast";
 import { ImageIcon, SendIcon, XIcon, Smile } from "lucide-react";
 import EmojiPicker, { Theme } from "emoji-picker-react";
@@ -13,8 +14,10 @@ function MessageInput() {
   
   const fileInputRef = useRef(null);
   const pickerRef = useRef(null);
+  const typingTimeoutRef = useRef(null); // Ref to track idle time
 
-  const { sendMessage, isSoundEnabled, repliedMessage, clearRepliedMessage } = useChatStore();
+  const { sendMessage, isSoundEnabled, repliedMessage, clearRepliedMessage, selectedUser } = useChatStore();
+  const { socket } = useAuthStore(); // Access socket for real-time signaling
 
   // Handle clicking outside to close picker
   useEffect(() => {
@@ -27,6 +30,24 @@ function MessageInput() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Handle Typing Signaling
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setText(value);
+
+    if (!socket || !selectedUser) return;
+
+    // Notify that we started typing
+    socket.emit("typing", { receiverId: selectedUser._id });
+
+    // Clear existing timeout and set a new one to signal "Stop Typing"
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stopTyping", { receiverId: selectedUser._id });
+    }, 3000); // 3 seconds of inactivity signals a stop
+  };
+
   const onEmojiClick = (emojiData) => {
     setText((prev) => prev + emojiData.emoji);
   };
@@ -35,6 +56,12 @@ function MessageInput() {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
     
+    // Stop typing signal immediately on send
+    if (socket && selectedUser) {
+      socket.emit("stopTyping", { receiverId: selectedUser._id });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+
     if (isSoundEnabled) playRandomKeyStrokeSound();
 
     await sendMessage({
@@ -62,7 +89,6 @@ function MessageInput() {
 
   return (
     <div className="w-full bg-zinc-950 border-t border-zinc-800 p-4 relative z-30">
-      
       {/* Emoji Picker Wrapper */}
       {showEmojiPicker && (
         <div 
@@ -118,7 +144,7 @@ function MessageInput() {
           <input
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleInputChange} // Changed from setText to handleInputChange
             className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-5 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-yellow-500/50 transition-all shadow-inner"
             placeholder="Secure transmission..."
           />
