@@ -8,6 +8,7 @@ export const useAuthStore = create((set, get) => ({
   isCheckingAuth: true,
   isSigningUp: false,
   isLoggingIn: false,
+  isVerifying: false, // New state for verification loading
   socket: null,
   onlineUsers: [],
 
@@ -25,19 +26,36 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // ✅ SIGNUP
+  // ✅ SIGNUP (Updated for Verification Flow)
   signup: async (data) => {
     set({ isSigningUp: true });
     try {
       const res = await axiosInstance.post("/api/auth/signup", data);
-      set({ authUser: res.data });
-
-      toast.success("Account created successfully!");
-      get().connectSocket();
+      
+      // We don't set authUser here anymore because they aren't verified yet
+      toast.success(res.data.message || "Check your email to verify your account!");
+      
+      return true; // Return success to the component
     } catch (error) {
       toast.error(error?.response?.data?.message || "Signup failed");
+      return false;
     } finally {
       set({ isSigningUp: false });
+    }
+  },
+
+  // ✅ VERIFY EMAIL (New Action)
+  verifyEmail: async (token) => {
+    set({ isVerifying: true });
+    try {
+      const res = await axiosInstance.get(`/api/auth/verify-email?token=${token}`);
+      toast.success(res.data.message || "Email verified! You can now login.");
+      return true;
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Verification failed");
+      return false;
+    } finally {
+      set({ isVerifying: false });
     }
   },
 

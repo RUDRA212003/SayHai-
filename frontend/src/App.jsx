@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router";
 import ChatPage from "./pages/ChatPage";
 import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage"; // 1. Import the new page
 import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
 import { useEffect } from "react";
@@ -13,11 +14,10 @@ function App() {
   const { isDarkMode, initTheme } = useThemeStore();
 
   useEffect(() => {
-    initTheme(); // Initialize theme on app load
+    initTheme(); 
     checkAuth();
   }, []);
 
-  // High-end PageLoader should use the Zinc-950 background
   if (isCheckingAuth) return <PageLoader />;
 
   return (
@@ -26,9 +26,11 @@ function App() {
         <Route path="/" element={authUser ? <ChatPage /> : <Navigate to={"/login"} />} />
         <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to={"/"} />} />
         <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to={"/"} />} />
+        
+        {/* 2. Add the Verification Route */}
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
       </Routes>
 
-      {/* THEME-AWARE TOASTER */}
       <Toaster 
         position="top-center" 
         toastOptions={{

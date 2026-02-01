@@ -1,9 +1,10 @@
-import { sendWelcomeEmail } from "../emails/emailHandlers.js";
+import crypto from "crypto"; // Native Node.js module for secret tokens
 import { generateToken } from "../lib/utils.js";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
+import { sendVerificationEmail } from "../lib/email.js"; // Import your new helper
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -28,30 +29,32 @@ export const signup = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // 1. GENERATE SECURE TOKEN
+    const verificationToken = crypto.randomBytes(20).toString("hex");
+
     const newUser = new User({
       fullName,
       email,
       password: hashedPassword,
+      verificationToken, // Save the token
+      isVerified: false, // Ensure they start unverified
     });
 
     if (newUser) {
-      const savedUser = await newUser.save();
+      await newUser.save();
       
-      // Issued cookie with sameSite: "none" and secure: true via utils.js
-      generateToken(savedUser._id, res);
-
-      res.status(201).json({
-        _id: savedUser._id,
-        fullName: savedUser.fullName,
-        email: savedUser.email,
-        profilePic: savedUser.profilePic,
-      });
-
+      // 2. SEND VERIFICATION EMAIL (Instead of logging them in)
       try {
-        await sendWelcomeEmail(savedUser.email, savedUser.fullName, ENV.CLIENT_URL);
+        await sendVerificationEmail(newUser.email, verificationToken);
       } catch (error) {
-        console.error("Failed to send welcome email:", error);
+        console.error("Failed to send verification email:", error);
       }
+
+      // 3. DO NOT CALL generateToken(newUser._id, res) HERE
+      // We want them to verify first.
+      res.status(201).json({
+        message: "Registration successful. Please check your email to verify your profile.",
+      });
     } else {
       res.status(400).json({ message: "Invalid user data" });
     }
@@ -75,6 +78,14 @@ export const login = async (req, res) => {
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid credentials" });
 
+    // 4. BLOCK UNVERIFIED USERS
+    if (!user.isVerified) {
+      return res.status(403).json({ 
+        message: "Account not verified. Please check your email for the verification link." 
+      });
+    }
+
+    // 5. LOGIN ONLY IF VERIFIED
     generateToken(user._id, res);
 
     res.status(200).json({
@@ -89,15 +100,35 @@ export const login = async (req, res) => {
   }
 };
 
+// 6. NEW: THE VERIFICATION CONTROLLER
+export const verifyEmail = async (req, res) => {
+  const { token } = req.query; // Takes token from the URL ?token=...
+
+  try {
+    const user = await User.findOne({ verificationToken: token });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired verification token" });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined; // Remove token once used
+    await user.save();
+
+    res.status(200).json({ message: "Email verified successfully. You can now login." });
+  } catch (error) {
+    console.error("Error in verifyEmail:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export const logout = (_, res) => {
-  // IMPORTANT: For Render, logout must match the domain configuration
   res.cookie("jwt", "", {
     httpOnly: true,
-    sameSite: "none", // Must match generateToken
-    secure: true,      // Must match generateToken
-    maxAge: 0,         // Immediately expires the cookie
+    sameSite: "none",
+    secure: true,
+    maxAge: 0,
   });
-
   res.status(200).json({ message: "Logged out successfully" });
 };
 
@@ -105,20 +136,11 @@ export const updateProfile = async (req, res) => {
   try {
     const { profilePic } = req.body;
     if (!profilePic) return res.status(400).json({ message: "Profile pic is required" });
-
     const userId = req.user._id;
-
-    // Upload to Cloudinary
     const uploadResponse = await cloudinary.uploader.upload(profilePic, {
         folder: "chatify_profiles",
     });
-
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { profilePic: uploadResponse.secure_url },
-      { new: true }
-    );
-
+    const updatedUser = await User.findByIdAndUpdate(userId,{ profilePic: uploadResponse.secure_url },{ new: true });
     res.status(200).json(updatedUser);
   } catch (error) {
     console.log("Error in update profile:", error);
