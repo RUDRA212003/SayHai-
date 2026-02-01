@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 
 function ChatHeader() {
-  const { selectedUser, setSelectedUser } = useChatStore();
+  // Added isTyping to the store extraction
+  const { selectedUser, setSelectedUser, isTyping } = useChatStore();
   const { onlineUsers } = useAuthStore();
   
   if (!selectedUser) return null;
@@ -53,11 +54,27 @@ function ChatHeader() {
           <h3 className="text-zinc-100 font-bold leading-tight tracking-tight">
             {selectedUser.fullName}
           </h3>
-          <div className="flex items-center gap-1.5">
-             <span className={`size-1.5 rounded-full ${isOnline ? 'bg-yellow-500 animate-pulse' : 'bg-zinc-600'}`} />
-             <span className="text-[10px] uppercase tracking-widest font-black text-zinc-500">
-               {isOnline ? "Encrypted / Online" : "Last seen recently"}
-             </span>
+          <div className="flex items-center gap-1.5 h-4"> {/* Fixed height prevents layout jump */}
+              {isTyping ? (
+                <div className="flex items-center gap-1">
+                   {/* Animated Three-Dot typing indicator */}
+                  <span className="flex gap-0.5">
+                    <span className="size-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <span className="size-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <span className="size-1 bg-yellow-500 rounded-full animate-bounce" />
+                  </span>
+                  <span className="text-[10px] uppercase tracking-tighter font-black text-yellow-500 animate-pulse">
+                    Typing...
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <span className={`size-1.5 rounded-full ${isOnline ? 'bg-yellow-500 animate-pulse' : 'bg-zinc-600'}`} />
+                  <span className="text-[10px] uppercase tracking-widest font-black text-zinc-500">
+                    {isOnline ? "Encrypted / Online" : "Last seen recently"}
+                  </span>
+                </>
+              )}
           </div>
         </div>
       </div>
