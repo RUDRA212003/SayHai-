@@ -7,13 +7,14 @@ export const useChatStore = create((set, get) => ({
   allContacts: [],
   chats: [],
   messages: [],
-  unreadCounts: {}, 
+  unreadCounts: {},
   activeTab: "chats",
   selectedUser: null,
   repliedMessage: null,
   isUsersLoading: false,
   isMessagesLoading: false,
   isSoundEnabled: JSON.parse(localStorage.getItem("isSoundEnabled")) === true,
+  isTyping: false, // Added for typing indicator logic
 
   toggleSound: () => {
     localStorage.setItem("isSoundEnabled", !get().isSoundEnabled);
@@ -21,28 +22,43 @@ export const useChatStore = create((set, get) => ({
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
-  
-  // UPDATED: Now clears count locally AND notifies backend
+
   setSelectedUser: async (selectedUser) => {
     if (!selectedUser) {
-      set({ selectedUser: null });
+      set({ selectedUser: null, isTyping: false });
       return;
     }
 
-    // Local update for immediate UI response
-    set({ 
+    set({
       selectedUser,
+      isTyping: false,
       unreadCounts: {
         ...get().unreadCounts,
         [selectedUser._id]: 0,
-      }
+      },
     });
 
-    // Backend update to persist "seen" status
     try {
       await axiosInstance.post(`/api/messages/mark-seen/${selectedUser._id}`);
     } catch (error) {
       console.error("Error marking messages as seen:", error);
+    }
+  },
+
+  // NEW: Handle sending/toggling reactions
+  handleReaction: async (messageId, emoji) => {
+    try {
+      const res = await axiosInstance.post(`/api/messages/react/${messageId}`, { emoji });
+      
+      // Update the specific message in the local state with new reactions array
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m._id === messageId ? { ...m, reactions: res.data } : m
+        ),
+      }));
+    } catch (error) {
+      console.error("Reaction error:", error);
+      toast.error("Failed to update reaction");
     }
   },
 
@@ -52,31 +68,29 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get("/api/messages/contacts");
       set({ allContacts: res.data });
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Failed to load contacts");
     } finally {
       set({ isUsersLoading: false });
     }
   },
 
-  // UPDATED: Now extracts unread counts from the new backend response
   getMyChatPartners: async () => {
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/api/messages/chats");
       const chatData = res.data;
 
-      // Extract unread counts into a map
       const initialCounts = {};
-      chatData.forEach(user => {
+      chatData.forEach((user) => {
         initialCounts[user._id] = user.unreadCount || 0;
       });
 
-      set({ 
+      set({
         chats: chatData,
-        unreadCounts: initialCounts 
+        unreadCounts: initialCounts,
       });
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Failed to load chats");
     } finally {
       set({ isUsersLoading: false });
     }
@@ -106,6 +120,7 @@ export const useChatStore = create((set, get) => ({
       text: messageData.text,
       image: messageData.image,
       replyTo: messageData.replyTo || null,
+      reactions: [], // Initialize with empty reactions
       createdAt: new Date().toISOString(),
       isOptimistic: true,
     };
@@ -115,8 +130,8 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post(`/api/messages/send/${selectedUser._id}`, messageData);
       set({ messages: messages.concat(res.data), repliedMessage: null });
-      
-      const chatExists = chats.some(chat => chat._id === selectedUser._id);
+
+      const chatExists = chats.some((chat) => chat._id === selectedUser._id);
       if (!chatExists) {
         set({ chats: [selectedUser, ...chats] });
       }
@@ -130,14 +145,13 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
+    // Listen for new messages
     socket.on("newMessage", (newMessage) => {
       const { selectedUser, isSoundEnabled, chats, messages, unreadCounts } = get();
-      
       const isFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
 
       if (isFromSelectedUser) {
         set({ messages: [...messages, newMessage] });
-        // Since chat is open, immediately mark as seen on backend
         axiosInstance.post(`/api/messages/mark-seen/${selectedUser._id}`);
       } else {
         set({
@@ -148,22 +162,42 @@ export const useChatStore = create((set, get) => ({
         });
       }
 
-      const senderInChats = chats.some(chat => chat._id === newMessage.senderId);
-      if (!senderInChats) {
-        get().getMyChatPartners(); 
+      if (!chats.some((chat) => chat._id === newMessage.senderId)) {
+        get().getMyChatPartners();
       }
 
       if (isSoundEnabled) {
         const notificationSound = new Audio("/sounds/notification.mp3");
-        notificationSound.currentTime = 0;
-        notificationSound.play().catch((e) => console.log("Audio play failed:", e));
+        notificationSound.play().catch((e) => console.log("Audio failed:", e));
       }
+    });
+
+    // NEW: Listen for real-time reactions
+    socket.on("messageReactionUpdate", ({ messageId, reactions }) => {
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m._id === messageId ? { ...m, reactions } : m
+        ),
+      }));
+    });
+
+    // Listen for typing indicator
+    socket.on("userTyping", ({ senderId }) => {
+      if (get().selectedUser?._id === senderId) set({ isTyping: true });
+    });
+
+    socket.on("userStoppedTyping", ({ senderId }) => {
+      if (get().selectedUser?._id === senderId) set({ isTyping: false });
     });
   },
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
-    if (socket) socket.off("newMessage");
+    if (!socket) return;
+    socket.off("newMessage");
+    socket.off("messageReactionUpdate"); // Clean up reaction listener
+    socket.off("userTyping");
+    socket.off("userStoppedTyping");
   },
 
   deleteMessage: async (messageId) => {

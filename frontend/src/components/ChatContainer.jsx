@@ -6,7 +6,7 @@ import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
 import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 import MessageContextMenu from "./MessageContextMenu";
-import { X, Maximize2, Download } from "lucide-react";
+import { X, Maximize2, Download, Smile } from "lucide-react";
 
 function ChatContainer() {
   const {
@@ -20,28 +20,27 @@ function ChatContainer() {
     replyToMessage,
     repliedMessage,
     clearRepliedMessage,
+    handleReaction, // Added from store
   } = useChatStore();
 
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [selectedImg, setSelectedImg] = useState(null);
+  const [hoveredMessage, setHoveredMessage] = useState(null);
 
-  // Initial Fetch & Socket Subscription
   useEffect(() => {
     getMessagesByUserId(selectedUser._id);
     subscribeToMessages();
     return () => unsubscribeFromMessages();
   }, [selectedUser._id, getMessagesByUserId, subscribeToMessages, unsubscribeFromMessages]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (messageEndRef.current) {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
-  // Global Key Listeners (Escape for Context Menu and Full Image)
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === "Escape") {
@@ -60,18 +59,42 @@ function ChatContainer() {
     }
   };
 
+  // Predefined reactions for the tray
+  const REACTION_OPTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
+
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
       <ChatHeader />
 
-      {/* Message List Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-[url('/grid.svg')] bg-fixed">
         {messages.length > 0 && !isMessagesLoading ? (
           <>
             {messages.map((msg) => {
               const isMe = msg.senderId === authUser._id;
+              const hasReactions = msg.reactions && msg.reactions.length > 0;
+
               return (
-                <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                <div 
+                  key={msg._id} 
+                  className={`flex ${isMe ? "justify-end" : "justify-start"} group/row relative`}
+                  onMouseEnter={() => setHoveredMessage(msg._id)}
+                  onMouseLeave={() => setHoveredMessage(null)}
+                >
+                  {/* REACTION TRAY - Visible on hover */}
+                  {!isMe && hoveredMessage === msg._id && (
+                    <div className="absolute -top-8 left-0 flex gap-1 bg-zinc-900 border border-zinc-800 p-1 rounded-full shadow-2xl z-10 animate-in slide-in-from-bottom-2 duration-200">
+                      {REACTION_OPTIONS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => handleReaction(msg._id, emoji)}
+                          className="hover:scale-125 transition-transform px-1.5 py-0.5 text-lg"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div
                     onContextMenu={(e) => handleRightClick(e, msg)}
                     className={`relative max-w-[80%] md:max-w-md p-3 rounded-2xl transition-all group ${
@@ -94,10 +117,36 @@ function ChatContainer() {
                     
                     {msg.text && <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>}
                     
+                    {/* DISPLAY REACTIONS */}
+                    {hasReactions && (
+                      <div className={`flex flex-wrap gap-1 mt-2 ${isMe ? "justify-start" : "justify-end"}`}>
+                        {msg.reactions.map((reaction, index) => (
+                          <div 
+                            key={index} 
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isMe ? "bg-black/20 border-black/10 text-black" : "bg-zinc-800 border-zinc-700 text-yellow-500"
+                            }`}
+                          >
+                            {reaction.emoji}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className={`flex items-center gap-1 mt-1 justify-end opacity-60 text-[10px] font-bold uppercase tracking-tighter ${isMe ? 'text-black/80' : 'text-zinc-500'}`}>
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
+
+                  {/* Desktop Reaction Trigger (Optional Smiley Icon) */}
+                  {hoveredMessage === msg._id && !isMe && (
+                     <button 
+                       onClick={() => handleReaction(msg._id, "❤️")} // Quick heart reaction
+                       className="self-center ml-2 p-1 text-zinc-600 hover:text-yellow-500 transition-colors"
+                     >
+                       <Smile className="size-4" />
+                     </button>
+                  )}
                 </div>
               );
             })}
@@ -125,7 +174,7 @@ function ChatContainer() {
         </div>
       )}
 
-      {/* --- FULL SCREEN OVERLAY --- */}
+      {/* Full Screen Image Overlay */}
       {selectedImg && (
         <div 
           className="fixed inset-0 z-[999] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-300"

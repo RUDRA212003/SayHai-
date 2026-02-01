@@ -21,7 +21,12 @@ export const getMessagesByUserId = async (req, res) => {
     const myId = req.user._id;
     const { id: userToChatId } = req.params;
 
-    // populate replyTo so frontend can show replied message preview
+    // Mark unread messages from this sender as seen immediately
+    await Message.updateMany(
+      { senderId: userToChatId, receiverId: myId, isSeen: false },
+      { $set: { isSeen: true } }
+    );
+
     const messages = await Message.find({
       $or: [
         { senderId: myId, receiverId: userToChatId },
@@ -29,7 +34,6 @@ export const getMessagesByUserId = async (req, res) => {
       ],
     }).populate({ path: "replyTo", select: "text image createdAt senderId" });
 
-    // Decrypt messages before sending to client
     const decryptedMessages = messages.map((msg) => {
       const msgObj = msg.toObject();
       if (msgObj.text) {
@@ -38,9 +42,7 @@ export const getMessagesByUserId = async (req, res) => {
       if (msgObj.replyTo && msgObj.replyTo.text) {
         try {
           msgObj.replyTo.text = decryptMessage(msgObj.replyTo.text);
-        } catch (e) {
-          // leave as is if decryption fails
-        }
+        } catch (e) {}
       }
       return msgObj;
     });
@@ -64,10 +66,6 @@ export const sendMessage = async (req, res) => {
     if (senderId.equals(receiverId)) {
       return res.status(400).json({ message: "Cannot send messages to yourself." });
     }
-    const receiverExists = await User.exists({ _id: receiverId });
-    if (!receiverExists) {
-      return res.status(404).json({ message: "Receiver not found." });
-    }
 
     let imageUrl;
     if (image) {
@@ -78,8 +76,7 @@ export const sendMessage = async (req, res) => {
         });
         imageUrl = uploadResponse.secure_url;
       } catch (uploadError) {
-        console.error("Cloudinary upload error:", uploadError);
-        return res.status(400).json({ message: "Failed to upload image. Please try again." });
+        return res.status(400).json({ message: "Failed to upload image." });
       }
     }
 
@@ -91,7 +88,7 @@ export const sendMessage = async (req, res) => {
       text: encryptedText,
       image: imageUrl,
       replyTo: replyTo || null,
-      isSeen: false, // Defaulting to false for new messages
+      isSeen: false,
     });
 
     await newMessage.save();
@@ -108,7 +105,6 @@ export const sendMessage = async (req, res) => {
 
     res.status(201).json(messageToEmit);
   } catch (error) {
-    console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -133,7 +129,6 @@ export const getChatPartners = async (req, res) => {
 
     const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
 
-    // NEW: Calculate unread counts for each partner
     const chatPartnersWithCounts = await Promise.all(
       chatPartners.map(async (partner) => {
         const unreadCount = await Message.countDocuments({
@@ -142,21 +137,16 @@ export const getChatPartners = async (req, res) => {
           isSeen: false,
         });
 
-        return {
-          ...partner.toObject(),
-          unreadCount,
-        };
+        return { ...partner.toObject(), unreadCount };
       })
     );
 
     res.status(200).json(chatPartnersWithCounts);
   } catch (error) {
-    console.error("Error in getChatPartners: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// NEW: Clear unread status for messages from a specific sender
 export const markMessagesAsSeen = async (req, res) => {
   try {
     const { id: userToChatId } = req.params;
@@ -169,7 +159,49 @@ export const markMessagesAsSeen = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Messages marked as seen" });
   } catch (error) {
-    console.error("Error in markMessagesAsSeen: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// NEW: React to a message
+export const reactToMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    const existingReactionIndex = message.reactions.findIndex(
+      (r) => r.userId.toString() === userId.toString()
+    );
+
+    if (existingReactionIndex > -1) {
+      // Toggle logic: If same emoji, remove it. If different, update it.
+      if (message.reactions[existingReactionIndex].emoji === emoji) {
+        message.reactions.splice(existingReactionIndex, 1);
+      } else {
+        message.reactions[existingReactionIndex].emoji = emoji;
+      }
+    } else {
+      message.reactions.push({ userId, emoji });
+    }
+
+    await message.save();
+
+    // Broadcast the update via Socket
+    const receiverId = message.senderId.equals(userId) ? message.receiverId : message.senderId;
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("messageReactionUpdate", {
+        messageId,
+        reactions: message.reactions,
+      });
+    }
+
+    res.status(200).json(message.reactions);
+  } catch (error) {
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -178,22 +210,16 @@ export const deleteMessage = async (req, res) => {
   try {
     const messageId = req.params.id;
     const userId = req.user._id;
-
     const message = await Message.findById(messageId);
 
-    if (!message) {
-      return res.status(404).json({ message: "Message not found" });
-    }
-
+    if (!message) return res.status(404).json({ message: "Message not found" });
     if (message.senderId.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "You can only delete your own messages" });
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
     await Message.findByIdAndDelete(messageId);
-
-    res.status(200).json({ success: true, message: "Message deleted successfully" });
+    res.status(200).json({ success: true, message: "Message deleted" });
   } catch (error) {
-    console.error("Error in deleteMessage: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
