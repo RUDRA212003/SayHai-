@@ -24,8 +24,18 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // --- NEW FIELDS FOR VERIFICATION ---
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      default: null,
+    },
+    // -----------------------------------
   },
-  { timestamps: true } // createdAt & updatedAt
+  { timestamps: true }
 );
 
 const User = mongoose.model("User", userSchema);
