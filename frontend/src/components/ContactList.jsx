@@ -15,9 +15,21 @@ function ContactList() {
 
   if (isUsersLoading) return <UsersLoadingSkeleton />;
 
+  // Defensive check to ensure allContacts is an array before mapping
+  if (!Array.isArray(allContacts)) {
+    return (
+      <div className="space-y-2 p-2">
+        <p className="text-zinc-400 text-center py-4">No contacts available</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2 p-2">
-      {allContacts.map((contact) => {
+      {allContacts.length === 0 ? (
+        <p className="text-zinc-400 text-center py-4">No contacts found</p>
+      ) : (
+        allContacts.map((contact) => {
         const isOnline = onlineUsers.includes(contact._id);
         
         // Retrieve the specific unread count for this contact
@@ -81,7 +93,8 @@ function ContactList() {
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-[1px] bg-yellow-500 group-hover:w-2/3 transition-all duration-500" />
           </div>
         );
-      })}
+      })
+      )}
     </div>
   );
 }

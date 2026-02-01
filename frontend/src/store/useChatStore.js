@@ -66,8 +66,12 @@ export const useChatStore = create((set, get) => ({
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/api/messages/contacts");
-      set({ allContacts: res.data });
+      // Ensure allContacts is always an array, even if response is malformed
+      const contactsData = Array.isArray(res.data) ? res.data : [];
+      set({ allContacts: contactsData });
     } catch (error) {
+      // Reset allContacts to empty array on error
+      set({ allContacts: [] });
       toast.error(error.response?.data?.message || "Failed to load contacts");
     } finally {
       set({ isUsersLoading: false });
@@ -78,7 +82,7 @@ export const useChatStore = create((set, get) => ({
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/api/messages/chats");
-      const chatData = res.data;
+      const chatData = Array.isArray(res.data) ? res.data : [];
 
       const initialCounts = {};
       chatData.forEach((user) => {
@@ -90,6 +94,8 @@ export const useChatStore = create((set, get) => ({
         unreadCounts: initialCounts,
       });
     } catch (error) {
+      // Reset chats to empty array on error
+      set({ chats: [], unreadCounts: {} });
       toast.error(error.response?.data?.message || "Failed to load chats");
     } finally {
       set({ isUsersLoading: false });
