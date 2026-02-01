@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { useThemeStore } from "../store/useThemeStore";
 import ChatHeader from "./ChatHeader";
 import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
@@ -20,10 +21,11 @@ function ChatContainer() {
     replyToMessage,
     repliedMessage,
     clearRepliedMessage,
-    handleReaction, // Added from store
+    handleReaction,
   } = useChatStore();
 
   const { authUser } = useAuthStore();
+  const { isDarkMode } = useThemeStore();
   const messageEndRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [selectedImg, setSelectedImg] = useState(null);
@@ -63,10 +65,12 @@ function ChatContainer() {
   const REACTION_OPTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
-      <ChatHeader />
+    <div className={`flex flex-col h-full ${isDarkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-gray-900'}`}>
+      <div className="sticky top-0 z-30">
+        <ChatHeader />
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-[url('/grid.svg')] bg-fixed">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar ${isDarkMode ? 'bg-[url(\'/grid.svg\')] bg-fixed' : 'bg-gray-50'}`}>
         {messages.length > 0 && !isMessagesLoading ? (
           <>
             {messages.map((msg) => {
@@ -82,7 +86,7 @@ function ChatContainer() {
                 >
                   {/* REACTION TRAY - Visible on hover */}
                   {!isMe && hoveredMessage === msg._id && (
-                    <div className="absolute -top-8 left-0 flex gap-1 bg-zinc-900 border border-zinc-800 p-1 rounded-full shadow-2xl z-10 animate-in slide-in-from-bottom-2 duration-200">
+                    <div className={`absolute -top-8 left-0 flex gap-1 p-1 rounded-full shadow-2xl z-10 animate-in slide-in-from-bottom-2 duration-200 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-gray-300'}`}>
                       {REACTION_OPTIONS.map((emoji) => (
                         <button
                           key={emoji}
@@ -99,8 +103,12 @@ function ChatContainer() {
                     onContextMenu={(e) => handleRightClick(e, msg)}
                     className={`relative max-w-[80%] md:max-w-md p-3 rounded-2xl transition-all group ${
                       isMe
-                        ? "bg-yellow-500 text-black rounded-tr-none shadow-[0_4px_20px_rgba(234,179,8,0.15)]"
-                        : "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none shadow-xl"
+                        ? isDarkMode
+                          ? "bg-yellow-500 text-black rounded-tr-none shadow-[0_4px_20px_rgba(234,179,8,0.15)]"
+                          : "bg-blue-600 text-white rounded-tr-none shadow-[0_4px_20px_rgba(37,99,235,0.15)]"
+                        : isDarkMode
+                          ? "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none shadow-xl"
+                          : "bg-gray-200 border border-gray-300 text-gray-900 rounded-tl-none shadow-lg"
                     }`}
                   >
                     {msg.image && (
@@ -124,7 +132,13 @@ function ChatContainer() {
                           <div 
                             key={index} 
                             className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              isMe ? "bg-black/20 border-black/10 text-black" : "bg-zinc-800 border-zinc-700 text-yellow-500"
+                              isMe
+                                ? isDarkMode
+                                  ? "bg-black/20 border-black/10 text-black"
+                                  : "bg-white/30 border-white/20 text-blue-600"
+                                : isDarkMode
+                                  ? "bg-zinc-800 border-zinc-700 text-yellow-500"
+                                  : "bg-gray-300 border-gray-400 text-gray-700"
                             }`}
                           >
                             {reaction.emoji}
@@ -133,7 +147,7 @@ function ChatContainer() {
                       </div>
                     )}
 
-                    <div className={`flex items-center gap-1 mt-1 justify-end opacity-60 text-[10px] font-bold uppercase tracking-tighter ${isMe ? 'text-black/80' : 'text-zinc-500'}`}>
+                    <div className={`flex items-center gap-1 mt-1 justify-end opacity-60 text-[10px] font-bold uppercase tracking-tighter ${isMe ? (isDarkMode ? 'text-black/80' : 'text-blue-700/80') : (isDarkMode ? 'text-zinc-500' : 'text-gray-600')}`}>
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
@@ -142,7 +156,7 @@ function ChatContainer() {
                   {hoveredMessage === msg._id && !isMe && (
                      <button 
                        onClick={() => handleReaction(msg._id, "❤️")} // Quick heart reaction
-                       className="self-center ml-2 p-1 text-zinc-600 hover:text-yellow-500 transition-colors"
+                       className={`self-center ml-2 p-1 transition-colors ${isDarkMode ? 'text-zinc-600 hover:text-yellow-500' : 'text-gray-500 hover:text-blue-600'}`}
                      >
                        <Smile className="size-4" />
                      </button>
@@ -161,13 +175,13 @@ function ChatContainer() {
 
       {/* Reply UI */}
       {repliedMessage && (
-        <div className="px-4 py-2 bg-zinc-900/90 backdrop-blur-sm border-t border-yellow-500/20">
-          <div className="flex items-center justify-between bg-zinc-800 p-2 rounded-lg border-l-4 border-yellow-500">
+        <div className={`px-4 py-2 backdrop-blur-sm border-t ${isDarkMode ? 'bg-zinc-900/90 border-yellow-500/20' : 'bg-gray-50/90 border-blue-500/20'}`}>
+          <div className={`flex items-center justify-between p-2 rounded-lg border-l-4 ${isDarkMode ? 'bg-zinc-800 border-yellow-500' : 'bg-gray-100 border-blue-600'}`}>
             <div className="truncate pr-4">
-              <span className="text-[10px] font-black text-yellow-500 uppercase">Replying to</span>
-              <p className="text-sm text-zinc-400 truncate">{repliedMessage.text || "Image"}</p>
+              <span className={`text-[10px] font-black uppercase ${isDarkMode ? 'text-yellow-500' : 'text-blue-600'}`}>Replying to</span>
+              <p className={`text-sm truncate ${isDarkMode ? 'text-zinc-400' : 'text-gray-600'}`}>{repliedMessage.text || "Image"}</p>
             </div>
-            <button onClick={clearRepliedMessage} className="text-zinc-500 hover:text-white">
+            <button onClick={clearRepliedMessage} className={`transition-colors ${isDarkMode ? 'text-zinc-500 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
               <X className="size-4" />
             </button>
           </div>
@@ -177,18 +191,18 @@ function ChatContainer() {
       {/* Full Screen Image Overlay */}
       {selectedImg && (
         <div 
-          className="fixed inset-0 z-[999] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-300"
+          className={`fixed inset-0 z-[999] backdrop-blur-md flex flex-col animate-in fade-in duration-300 ${isDarkMode ? 'bg-black/95' : 'bg-white/95'}`}
           onClick={() => setSelectedImg(null)}
         >
           <div className="flex justify-between p-6">
-            <button className="size-10 flex items-center justify-center bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition-colors">
+            <button className={`size-10 flex items-center justify-center rounded-full transition-colors ${isDarkMode ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gray-300 text-gray-900 hover:bg-gray-400'}`}>
                <X className="size-6" />
             </button>
             <a 
               href={selectedImg} 
               download 
               onClick={(e) => e.stopPropagation()}
-              className="size-10 flex items-center justify-center bg-yellow-500 rounded-full text-black hover:bg-yellow-400 transition-colors"
+              className={`size-10 flex items-center justify-center rounded-full transition-colors ${isDarkMode ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
             >
               <Download className="size-6" />
             </a>

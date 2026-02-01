@@ -1,10 +1,15 @@
-// Optimized for the Yellow & Dark (Noir) Theme
 function BorderAnimatedContainer({ children }) {
   return (
-    <div className="w-full h-full 
-      [background:linear-gradient(45deg,theme(colors.zinc.950),theme(colors.zinc.900)_50%,theme(colors.zinc.950))_padding-box,conic-gradient(from_var(--border-angle),theme(colors.zinc.800/.48)_80%,_theme(colors.yellow.500)_86%,_theme(colors.yellow.200)_90%,_theme(colors.yellow.500)_94%,_theme(colors.zinc.800/.48))_border-box] 
-      rounded-2xl border border-transparent animate-border flex overflow-hidden shadow-2xl">
-      {children}
+    <div className="w-full h-full relative p-[2px] bg-zinc-900 rounded-2xl border border-zinc-800 shadow-2xl">
+      {/* Top Left Corner */}
+      <div className="absolute top-0 left-0 size-8 border-t-2 border-l-2 border-yellow-500 rounded-tl-2xl z-20" />
+      
+      {/* Bottom Right Corner */}
+      <div className="absolute bottom-0 right-0 size-8 border-b-2 border-r-2 border-yellow-500 rounded-br-2xl z-20" />
+
+      <div className="w-full h-full rounded-[14px] bg-zinc-950/50 backdrop-blur-md overflow-hidden flex relative z-10">
+        {children}
+      </div>
     </div>
   );
 }
