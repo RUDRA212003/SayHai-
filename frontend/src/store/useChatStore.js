@@ -7,6 +7,7 @@ export const useChatStore = create((set, get) => ({
   allContacts: [],
   chats: [],
   messages: [],
+  unreadCounts: {}, // New state: { userId: count }
   activeTab: "chats",
   selectedUser: null,
   repliedMessage: null,
@@ -20,7 +21,21 @@ export const useChatStore = create((set, get) => ({
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setSelectedUser: (selectedUser) => set({ selectedUser }),
+  
+  // Updated to clear unread count when a user is selected
+  setSelectedUser: (selectedUser) => {
+    if (!selectedUser) {
+      set({ selectedUser: null });
+      return;
+    }
+    set({ 
+      selectedUser,
+      unreadCounts: {
+        ...get().unreadCounts,
+        [selectedUser._id]: 0,
+      }
+    });
+  },
 
   getAllContacts: async () => {
     set({ isUsersLoading: true });
@@ -33,6 +48,7 @@ export const useChatStore = create((set, get) => ({
       set({ isUsersLoading: false });
     }
   },
+
   getMyChatPartners: async () => {
     set({ isUsersLoading: true });
     try {
@@ -60,7 +76,6 @@ export const useChatStore = create((set, get) => ({
   sendMessage: async (messageData) => {
     const { selectedUser, messages, chats } = get();
     const { authUser } = useAuthStore.getState();
-
     const tempId = `temp-${Date.now()}`;
 
     const optimisticMessage = {
@@ -71,50 +86,58 @@ export const useChatStore = create((set, get) => ({
       image: messageData.image,
       replyTo: messageData.replyTo || null,
       createdAt: new Date().toISOString(),
-      isOptimistic: true, // flag to identify optimistic messages (optional)
+      isOptimistic: true,
     };
-    // immidetaly update the ui by adding the message
+
     set({ messages: [...messages, optimisticMessage] });
 
     try {
       const res = await axiosInstance.post(`/api/messages/send/${selectedUser._id}`, messageData);
       set({ messages: messages.concat(res.data), repliedMessage: null });
       
-      // Add or update the chat in chats list
       const chatExists = chats.some(chat => chat._id === selectedUser._id);
       if (!chatExists) {
         set({ chats: [selectedUser, ...chats] });
       }
     } catch (error) {
-      // remove optimistic message on failure
       set({ messages: messages });
       toast.error(error.response?.data?.message || "Something went wrong");
     }
   },
 
   subscribeToMessages: () => {
-    const { selectedUser, isSoundEnabled, chats } = get();
-    if (!selectedUser) return;
-
     const socket = useAuthStore.getState().socket;
+    if (!socket) return;
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+      const { selectedUser, isSoundEnabled, chats, messages, unreadCounts } = get();
+      
+      const isFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
 
-      const currentMessages = get().messages;
-      set({ messages: [...currentMessages, newMessage] });
+      if (isFromSelectedUser) {
+        // User is currently chatting with sender: Add to messages
+        set({ messages: [...messages, newMessage] });
+      } else {
+        // User is NOT chatting with sender: Increment badge count
+        set({
+          unreadCounts: {
+            ...unreadCounts,
+            [newMessage.senderId]: (unreadCounts[newMessage.senderId] || 0) + 1,
+          },
+        });
+      }
 
-      // Update chats list if sender is not already in chats
-      const chatExists = chats.some(chat => chat._id === selectedUser._id);
-      if (!chatExists) {
-        set({ chats: [selectedUser, ...chats] });
+      // Automatically move user to "Recent Chats" if they aren't there
+      const senderInChats = chats.some(chat => chat._id === newMessage.senderId);
+      if (!senderInChats) {
+        // You might need to fetch user details here or assume the backend sends sender info
+        // For now, we'll wait for the next manual refresh or use the newMessage details
+        get().getMyChatPartners(); 
       }
 
       if (isSoundEnabled) {
         const notificationSound = new Audio("/sounds/notification.mp3");
-
-        notificationSound.currentTime = 0; // reset to start
+        notificationSound.currentTime = 0;
         notificationSound.play().catch((e) => console.log("Audio play failed:", e));
       }
     });
@@ -122,7 +145,7 @@ export const useChatStore = create((set, get) => ({
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
-    socket.off("newMessage");
+    if (socket) socket.off("newMessage");
   },
 
   deleteMessage: async (messageId) => {
@@ -136,12 +159,6 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  replyToMessage: (message) => {
-    // This will be used to set the replied message context
-    set({ repliedMessage: message });
-  },
-
-  clearRepliedMessage: () => {
-    set({ repliedMessage: null });
-  },
+  replyToMessage: (message) => set({ repliedMessage: message }),
+  clearRepliedMessage: () => set({ repliedMessage: null }),
 }));
