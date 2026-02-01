@@ -24,11 +24,22 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
     },
-    // NEW: Tracks if the receiver has opened the chat
     isSeen: {
       type: Boolean,
       default: false,
     },
+    // NEW: Array to store reactions from users
+    reactions: [
+      {
+        userId: { 
+          type: mongoose.Schema.Types.ObjectId, 
+          ref: "User" 
+        },
+        emoji: { 
+          type: String 
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
