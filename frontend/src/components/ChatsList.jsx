@@ -5,7 +5,15 @@ import NoChatsFound from "./NoChatsFound";
 import { useAuthStore } from "../store/useAuthStore";
 
 function ChatsList() {
-  const { getMyChatPartners, chats, isUsersLoading, setSelectedUser, selectedUser } = useChatStore();
+  // Added unreadCounts to the store extraction
+  const { 
+    getMyChatPartners, 
+    chats, 
+    isUsersLoading, 
+    setSelectedUser, 
+    selectedUser, 
+    unreadCounts 
+  } = useChatStore();
   const { onlineUsers } = useAuthStore();
 
   useEffect(() => {
@@ -20,6 +28,9 @@ function ChatsList() {
       {chats.map((chat) => {
         const isSelected = selectedUser?._id === chat._id;
         const isOnline = onlineUsers.includes(chat._id);
+        
+        // Retrieve the specific count for this chat
+        const unreadCount = unreadCounts[chat._id] || 0;
 
         return (
           <div
@@ -79,9 +90,20 @@ function ChatsList() {
                 </p>
               </div>
               
-              {/* Hover Arrow (Subtle Detail) */}
-              <div className={`transition-opacity duration-300 ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-50"}`}>
-                <div className="size-1.5 rounded-full bg-yellow-500" />
+              {/* WHATSAPP STYLE NOTIFICATION BADGE */}
+              <div className="flex flex-col items-end gap-1">
+                {unreadCount > 0 && !isSelected && (
+                  <div className="size-5 flex items-center justify-center bg-yellow-500 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.3)] animate-in zoom-in duration-300">
+                    <span className="text-[10px] font-black text-black">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  </div>
+                )}
+
+                {/* Status Dot / Hover Arrow */}
+                <div className={`transition-opacity duration-300 ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-50"}`}>
+                  <div className="size-1.5 rounded-full bg-yellow-500" />
+                </div>
               </div>
             </div>
           </div>

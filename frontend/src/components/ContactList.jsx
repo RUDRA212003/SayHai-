@@ -2,10 +2,11 @@ import { useEffect } from "react";
 import { useChatStore } from "../store/useChatStore";
 import UsersLoadingSkeleton from "./UsersLoadingSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
-import { MessageSquarePlus } from "lucide-react"; // Added for a better UX
+import { MessageSquarePlus } from "lucide-react"; 
 
 function ContactList() {
-  const { getAllContacts, allContacts, setSelectedUser, isUsersLoading } = useChatStore();
+  // Added unreadCounts to the store extraction
+  const { getAllContacts, allContacts, setSelectedUser, isUsersLoading, unreadCounts } = useChatStore();
   const { onlineUsers } = useAuthStore();
 
   useEffect(() => {
@@ -18,6 +19,9 @@ function ContactList() {
     <div className="space-y-2 p-2">
       {allContacts.map((contact) => {
         const isOnline = onlineUsers.includes(contact._id);
+        
+        // Retrieve the specific unread count for this contact
+        const unreadCount = unreadCounts[contact._id] || 0;
         
         return (
           <div
@@ -55,9 +59,21 @@ function ContactList() {
                 </p>
               </div>
 
-              {/* Action Hint */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-yellow-500 pr-2">
-                <MessageSquarePlus className="size-5" />
+              {/* ACTION AREA: Badge or Icon */}
+              <div className="flex items-center gap-3 pr-2">
+                {/* UNREAD BADGE */}
+                {unreadCount > 0 && (
+                  <div className="size-5 flex items-center justify-center bg-yellow-500 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.4)] animate-in zoom-in duration-300">
+                    <span className="text-[10px] font-black text-black">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  </div>
+                )}
+
+                {/* Message Icon Hint */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-yellow-500">
+                  <MessageSquarePlus className="size-5" />
+                </div>
               </div>
             </div>
 
