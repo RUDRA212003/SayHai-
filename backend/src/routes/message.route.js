@@ -5,7 +5,8 @@ import {
   getMessagesByUserId,
   sendMessage,
   deleteMessage,
-  markMessagesAsSeen, // NEW: Imported controller
+  markMessagesAsSeen,
+  reactToMessage, // 1. Added the import for reactions
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 
@@ -18,8 +19,11 @@ router.get("/chats", getChatPartners);
 router.post("/send/:id", sendMessage);
 router.delete("/:id", deleteMessage);
 
-// NEW: Endpoint to clear unread counts for a specific sender
+// Endpoint to clear unread counts
 router.post("/mark-seen/:id", markMessagesAsSeen); 
+
+// 2. ADDED: Reaction route matching your store's API call
+router.post("/react/:id", reactToMessage); 
 
 router.get("/:id", getMessagesByUserId);
 
