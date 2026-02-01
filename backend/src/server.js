@@ -9,32 +9,30 @@ import { connectDB } from "./lib/db.js";
 import { ENV } from "./lib/env.js";
 import { app, server } from "./lib/socket.js";
 
-const __dirname = path.resolve();
-
 const PORT = ENV.PORT || 3000;
 
-app.use(express.json({ limit: "50mb" })); // req.body
+app.use(express.json({ limit: "50mb" })); 
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Allow CORS from frontend dev server(s) during development
+// ✅ CORS configuration
 if (ENV.NODE_ENV === "development") {
   app.use(cors({ origin: true, credentials: true }));
 } else {
+  // Ensure ENV.CLIENT_URL is your Vercel link on Render dashboard
   app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
 }
+
 app.use(cookieParser());
 
+// ✅ API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
-// make ready for deployment
-if (ENV.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../frontend/dist")));
-
-  app.get("*", (_, res) => {
-    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
-  });
-}
+// ✅ Health Check Route (replaces the old static file serving)
+// This confirms the backend is live without looking for frontend files
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "SayHi API is active and secure." });
+});
 
 server.listen(PORT, () => {
   console.log("Server running on port: " + PORT);
