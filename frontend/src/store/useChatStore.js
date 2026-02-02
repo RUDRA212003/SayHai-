@@ -186,15 +186,7 @@ export const useChatStore = create((set, get) => ({
         ),
       }));
     });
-
-    // Listen for typing indicator
-    socket.on("userTyping", ({ senderId }) => {
-      if (get().selectedUser?._id === senderId) set({ isTyping: true });
-    });
-
-    socket.on("userStoppedTyping", ({ senderId }) => {
-      if (get().selectedUser?._id === senderId) set({ isTyping: false });
-    });
+    // Typing indicator is handled centrally in useAuthStore to avoid race conditions
   },
 
   unsubscribeFromMessages: () => {
