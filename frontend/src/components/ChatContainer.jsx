@@ -65,12 +65,12 @@ function ChatContainer() {
   const REACTION_OPTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
   return (
-    <div className={`flex flex-col h-full ${isDarkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-gray-900'}`}>
-      <div className="sticky top-0 z-30">
+    <div className={`flex flex-col h-full min-h-0 ${isDarkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-gray-900'}`}>
+      <div className="flex-none">
         <ChatHeader />
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar ${isDarkMode ? 'bg-[url(\'/grid.svg\')] bg-fixed' : 'bg-gray-50'}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto p-4 space-y-6 custom-scrollbar ${isDarkMode ? 'bg-[url(\'/grid.svg\')] bg-fixed' : 'bg-gray-50'}`}>
         {messages.length > 0 && !isMessagesLoading ? (
           <>
             {messages.map((msg) => {
