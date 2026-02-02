@@ -6,6 +6,7 @@ import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
 import { sendVerificationEmail } from "../lib/email.js";
 
+// --- SIGNUP LOGIC (WITH UNVERIFIED RETRY) ---
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
 
@@ -23,12 +24,22 @@ export const signup = async (req, res) => {
       return res.status(400).json({ message: "Invalid email format" });
     }
 
-    const user = await User.findOne({ email });
-    if (user) return res.status(400).json({ message: "Email already exists" });
+    // CHECK FOR EXISTING ACCOUNTS
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      if (existingUser.isVerified) {
+        // Permanent user exists
+        return res.status(400).json({ message: "Email already exists" });
+      } else {
+        // User exists but is unverified; clear old record to allow fresh signup
+        await User.deleteOne({ _id: existingUser._id });
+        console.log(`♻️ Cleared unverified stale account for: ${email}`);
+      }
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
     const verificationToken = crypto.randomBytes(20).toString("hex");
 
     const newUser = new User({
@@ -39,27 +50,25 @@ export const signup = async (req, res) => {
       isVerified: false,
     });
 
-    if (newUser) {
-      await newUser.save();
-      
-      try {
-        await sendVerificationEmail(newUser.email, verificationToken);
-      } catch (error) {
-        console.error("Failed to send verification email:", error);
-      }
-
-      res.status(201).json({
-        message: "Registration successful. Please check your email to verify your profile.",
-      });
-    } else {
-      res.status(400).json({ message: "Invalid user data" });
+    await newUser.save();
+    
+    try {
+      await sendVerificationEmail(newUser.email, verificationToken);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
     }
+
+    res.status(201).json({
+      message: "Registration successful. Please check your email to verify your profile.",
+    });
+
   } catch (error) {
     console.log("Error in signup controller:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
+// --- LOGIN LOGIC (WITH BLOCK & ACTIVITY CHECKS) ---
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -71,7 +80,7 @@ export const login = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-    // --- SECURITY CHECK: BLOCKED USERS ---
+    // SECURITY CHECK: BLOCKED USERS
     if (user.isBlocked) {
       return res.status(403).json({ 
         message: "This account has been suspended for suspicious activity. Contact support." 
@@ -87,7 +96,7 @@ export const login = async (req, res) => {
       });
     }
 
-    // --- TRACK ACTIVITY ---
+    // TRACK ACTIVITY FOR ADMIN PANEL
     user.lastLogin = new Date();
     await user.save();
 
@@ -98,7 +107,7 @@ export const login = async (req, res) => {
       fullName: user.fullName,
       email: user.email,
       profilePic: user.profilePic,
-      role: user.role, // Send role to frontend for UI rendering
+      role: user.role, // Essential for Frontend Admin Access
     });
   } catch (error) {
     console.error("Error in login controller:", error);
@@ -106,6 +115,7 @@ export const login = async (req, res) => {
   }
 };
 
+// --- EMAIL VERIFICATION ---
 export const verifyEmail = async (req, res) => {
   const { token } = req.query;
 
@@ -127,11 +137,11 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-// --- ADMIN CONTROLLERS ---
+// --- ADMIN PANEL CONTROLLERS ---
 
 export const getAllUsers = async (req, res) => {
   try {
-    // Fetch all users except the current admin, excluding passwords for security
+    // Fetch all users except the current admin
     const users = await User.find({ _id: { $ne: req.user._id } }).select("-password");
     res.status(200).json(users);
   } catch (error) {
@@ -161,7 +171,7 @@ export const toggleBlockUser = async (req, res) => {
   }
 };
 
-// --- STANDARD CONTROLLERS ---
+// --- PROFILE & AUTH UTILS ---
 
 export const logout = (_, res) => {
   res.cookie("jwt", "", {
@@ -178,10 +188,17 @@ export const updateProfile = async (req, res) => {
     const { profilePic } = req.body;
     if (!profilePic) return res.status(400).json({ message: "Profile pic is required" });
     const userId = req.user._id;
+    
     const uploadResponse = await cloudinary.uploader.upload(profilePic, {
         folder: "chatify_profiles",
     });
-    const updatedUser = await User.findByIdAndUpdate(userId,{ profilePic: uploadResponse.secure_url },{ new: true });
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePic: uploadResponse.secure_url },
+      { new: true }
+    );
+    
     res.status(200).json(updatedUser);
   } catch (error) {
     console.log("Error in update profile:", error);
