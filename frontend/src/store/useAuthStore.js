@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { axiosInstance, socketBaseUrl } from "../lib/axios";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
+import { useChatStore } from "./useChatStore";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -114,6 +115,36 @@ export const useAuthStore = create((set, get) => ({
 
     newSocket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
+
+      // If selected user went offline, refresh their info (to get updated lastSeen)
+      const selectedUser = useChatStore.getState().selectedUser;
+      if (selectedUser && !userIds.includes(selectedUser._id)) {
+        // Try fetching contacts and update selectedUser with latest metadata
+        axiosInstance
+          .get("/api/messages/contacts")
+          .then((res) => {
+            const found = Array.isArray(res.data) ? res.data.find((u) => u._id === selectedUser._id) : null;
+            if (found) {
+              useChatStore.setState({ selectedUser: found });
+            }
+          })
+          .catch(() => {});
+      }
+    });
+
+    // Forward typing events to chat store so UI reacts even if message subscriptions weren't set yet
+    newSocket.on("userTyping", ({ senderId }) => {
+      const selected = useChatStore.getState().selectedUser;
+      if (selected && selected._id === senderId) {
+        useChatStore.setState({ isTyping: true });
+      }
+    });
+
+    newSocket.on("userStoppedTyping", ({ senderId }) => {
+      const selected = useChatStore.getState().selectedUser;
+      if (selected && selected._id === senderId) {
+        useChatStore.setState({ isTyping: false });
+      }
     });
 
     set({ socket: newSocket });
