@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    // --- NEW FIELDS FOR VERIFICATION ---
+    // --- VERIFICATION FIELDS ---
     isVerified: {
       type: Boolean,
       default: false,
@@ -32,6 +32,20 @@ const userSchema = new mongoose.Schema(
     verificationToken: {
       type: String,
       default: null,
+    },
+    // --- ADMIN & SECURITY FIELDS ---
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user", // Default to regular user
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false, // User is active by default
+    },
+    lastLogin: {
+      type: Date,
+      default: Date.now, // To track activity in your admin panel
     },
     // -----------------------------------
   },
