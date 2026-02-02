@@ -8,6 +8,7 @@ import { useThemeStore } from "./store/useThemeStore";
 import { useEffect } from "react";
 import PageLoader from "./components/PageLoader";
 import { Toaster } from "react-hot-toast";
+import AdminPanel from "./pages/AdminPanel"; // Adjust the path if your file is in a different folder
 
 function App() {
   const { checkAuth, isCheckingAuth, authUser } = useAuthStore();
@@ -29,6 +30,10 @@ function App() {
         
         {/* 2. Add the Verification Route */}
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route 
+  path="/admin" 
+  element={authUser?.role === "admin" ? <AdminPanel /> : <Navigate to="/" />} 
+/>
       </Routes>
 
       <Toaster 

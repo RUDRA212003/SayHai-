@@ -1,10 +1,10 @@
-import crypto from "crypto"; // Native Node.js module for secret tokens
+import crypto from "crypto";
 import { generateToken } from "../lib/utils.js";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
-import { sendVerificationEmail } from "../lib/email.js"; // Import your new helper
+import { sendVerificationEmail } from "../lib/email.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -29,29 +29,25 @@ export const signup = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 1. GENERATE SECURE TOKEN
     const verificationToken = crypto.randomBytes(20).toString("hex");
 
     const newUser = new User({
       fullName,
       email,
       password: hashedPassword,
-      verificationToken, // Save the token
-      isVerified: false, // Ensure they start unverified
+      verificationToken,
+      isVerified: false,
     });
 
     if (newUser) {
       await newUser.save();
       
-      // 2. SEND VERIFICATION EMAIL (Instead of logging them in)
       try {
         await sendVerificationEmail(newUser.email, verificationToken);
       } catch (error) {
         console.error("Failed to send verification email:", error);
       }
 
-      // 3. DO NOT CALL generateToken(newUser._id, res) HERE
-      // We want them to verify first.
       res.status(201).json({
         message: "Registration successful. Please check your email to verify your profile.",
       });
@@ -75,17 +71,26 @@ export const login = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid credentials" });
-
-    // 4. BLOCK UNVERIFIED USERS
-    if (!user.isVerified) {
+    // --- SECURITY CHECK: BLOCKED USERS ---
+    if (user.isBlocked) {
       return res.status(403).json({ 
-        message: "Account not verified. Please check your email for the verification link." 
+        message: "This account has been suspended for suspicious activity. Contact support." 
       });
     }
 
-    // 5. LOGIN ONLY IF VERIFIED
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid credentials" });
+
+    if (!user.isVerified) {
+      return res.status(403).json({ 
+        message: "Account not verified. Please check your email." 
+      });
+    }
+
+    // --- TRACK ACTIVITY ---
+    user.lastLogin = new Date();
+    await user.save();
+
     generateToken(user._id, res);
 
     res.status(200).json({
@@ -93,6 +98,7 @@ export const login = async (req, res) => {
       fullName: user.fullName,
       email: user.email,
       profilePic: user.profilePic,
+      role: user.role, // Send role to frontend for UI rendering
     });
   } catch (error) {
     console.error("Error in login controller:", error);
@@ -100,9 +106,8 @@ export const login = async (req, res) => {
   }
 };
 
-// 6. NEW: THE VERIFICATION CONTROLLER
 export const verifyEmail = async (req, res) => {
-  const { token } = req.query; // Takes token from the URL ?token=...
+  const { token } = req.query;
 
   try {
     const user = await User.findOne({ verificationToken: token });
@@ -112,7 +117,7 @@ export const verifyEmail = async (req, res) => {
     }
 
     user.isVerified = true;
-    user.verificationToken = undefined; // Remove token once used
+    user.verificationToken = undefined;
     await user.save();
 
     res.status(200).json({ message: "Email verified successfully. You can now login." });
@@ -121,6 +126,42 @@ export const verifyEmail = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// --- ADMIN CONTROLLERS ---
+
+export const getAllUsers = async (req, res) => {
+  try {
+    // Fetch all users except the current admin, excluding passwords for security
+    const users = await User.find({ _id: { $ne: req.user._id } }).select("-password");
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error in getAllUsers:", error);
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+};
+
+export const toggleBlockUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role === "admin") return res.status(400).json({ message: "Cannot block an admin" });
+
+    user.isBlocked = !user.isBlocked;
+    await user.save();
+
+    res.status(200).json({ 
+      message: `User ${user.isBlocked ? "blocked" : "unblocked"} successfully`,
+      isBlocked: user.isBlocked 
+    });
+  } catch (error) {
+    console.error("Error in toggleBlockUser:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// --- STANDARD CONTROLLERS ---
 
 export const logout = (_, res) => {
   res.cookie("jwt", "", {

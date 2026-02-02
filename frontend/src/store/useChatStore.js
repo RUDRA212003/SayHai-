@@ -7,6 +7,7 @@ export const useChatStore = create((set, get) => ({
   allContacts: [],
   chats: [],
   messages: [],
+  adminUsers: [], // NEW: For storing user list in Admin Panel
   unreadCounts: {},
   activeTab: "chats",
   selectedUser: null,
@@ -14,11 +15,45 @@ export const useChatStore = create((set, get) => ({
   isUsersLoading: false,
   isMessagesLoading: false,
   isSoundEnabled: JSON.parse(localStorage.getItem("isSoundEnabled")) === true,
-  isTyping: false, // Added for typing indicator logic
+  isTyping: false,
+
+  // --- ADMIN ACTIONS ---
+  
+  getAllUsers: async () => {
+    set({ isMessagesLoading: true }); // Triggers the PageLoader
+    try {
+      const res = await axiosInstance.get("/api/auth/admin/users");
+      set({ adminUsers: Array.isArray(res.data) ? res.data : [] });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to load users");
+    } finally {
+      set({ isMessagesLoading: false });
+    }
+  },
+
+  toggleBlockUser: async (userId) => {
+    try {
+      const res = await axiosInstance.put(`/api/auth/admin/users/${userId}/block`);
+      
+      // Optimistic update to UI
+      set((state) => ({
+        adminUsers: state.adminUsers.map((user) =>
+          user._id === userId ? { ...user, isBlocked: res.data.isBlocked } : user
+        ),
+      }));
+      
+      toast.success(res.data.message);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Action failed");
+    }
+  },
+
+  // --- EXISTING ACTIONS ---
 
   toggleSound: () => {
-    localStorage.setItem("isSoundEnabled", !get().isSoundEnabled);
-    set({ isSoundEnabled: !get().isSoundEnabled });
+    const newState = !get().isSoundEnabled;
+    localStorage.setItem("isSoundEnabled", newState);
+    set({ isSoundEnabled: newState });
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -45,12 +80,9 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  // NEW: Handle sending/toggling reactions
   handleReaction: async (messageId, emoji) => {
     try {
       const res = await axiosInstance.post(`/api/messages/react/${messageId}`, { emoji });
-      
-      // Update the specific message in the local state with new reactions array
       set((state) => ({
         messages: state.messages.map((m) =>
           m._id === messageId ? { ...m, reactions: res.data } : m
@@ -66,11 +98,9 @@ export const useChatStore = create((set, get) => ({
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/api/messages/contacts");
-      // Ensure allContacts is always an array, even if response is malformed
       const contactsData = Array.isArray(res.data) ? res.data : [];
       set({ allContacts: contactsData });
     } catch (error) {
-      // Reset allContacts to empty array on error
       set({ allContacts: [] });
       toast.error(error.response?.data?.message || "Failed to load contacts");
     } finally {
@@ -83,18 +113,12 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/api/messages/chats");
       const chatData = Array.isArray(res.data) ? res.data : [];
-
       const initialCounts = {};
       chatData.forEach((user) => {
         initialCounts[user._id] = user.unreadCount || 0;
       });
-
-      set({
-        chats: chatData,
-        unreadCounts: initialCounts,
-      });
+      set({ chats: chatData, unreadCounts: initialCounts });
     } catch (error) {
-      // Reset chats to empty array on error
       set({ chats: [], unreadCounts: {} });
       toast.error(error.response?.data?.message || "Failed to load chats");
     } finally {
@@ -126,7 +150,7 @@ export const useChatStore = create((set, get) => ({
       text: messageData.text,
       image: messageData.image,
       replyTo: messageData.replyTo || null,
-      reactions: [], // Initialize with empty reactions
+      reactions: [],
       createdAt: new Date().toISOString(),
       isOptimistic: true,
     };
@@ -136,9 +160,7 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post(`/api/messages/send/${selectedUser._id}`, messageData);
       set({ messages: messages.concat(res.data), repliedMessage: null });
-
-      const chatExists = chats.some((chat) => chat._id === selectedUser._id);
-      if (!chatExists) {
+      if (!chats.some((chat) => chat._id === selectedUser._id)) {
         set({ chats: [selectedUser, ...chats] });
       }
     } catch (error) {
@@ -151,7 +173,6 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
-    // Listen for new messages
     socket.on("newMessage", (newMessage) => {
       const { selectedUser, isSoundEnabled, chats, messages, unreadCounts } = get();
       const isFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
@@ -178,7 +199,6 @@ export const useChatStore = create((set, get) => ({
       }
     });
 
-    // NEW: Listen for real-time reactions
     socket.on("messageReactionUpdate", ({ messageId, reactions }) => {
       set((state) => ({
         messages: state.messages.map((m) =>
@@ -186,14 +206,13 @@ export const useChatStore = create((set, get) => ({
         ),
       }));
     });
-    // Typing indicator is handled centrally in useAuthStore to avoid race conditions
   },
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
     socket.off("newMessage");
-    socket.off("messageReactionUpdate"); // Clean up reaction listener
+    socket.off("messageReactionUpdate");
     socket.off("userTyping");
     socket.off("userStoppedTyping");
   },
