@@ -4,10 +4,17 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { encryptMessage, decryptMessage } from "../lib/encryption.js";
 
+// --- GET ALL VERIFIED CONTACTS ---
 export const getAllContacts = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+
+    // Filter: Only show users who have verified their email and are not blocked
+    const filteredUsers = await User.find({ 
+      _id: { $ne: loggedInUserId },
+      isVerified: true, // Verification check
+      isBlocked: false  // Blocked check
+    }).select("-password");
 
     res.status(200).json(filteredUsers);
   } catch (error) {
@@ -16,6 +23,7 @@ export const getAllContacts = async (req, res) => {
   }
 };
 
+// --- GET MESSAGES (WITH DECRYPTION) ---
 export const getMessagesByUserId = async (req, res) => {
   try {
     const myId = req.user._id;
@@ -34,6 +42,7 @@ export const getMessagesByUserId = async (req, res) => {
       ],
     }).populate({ path: "replyTo", select: "text image createdAt senderId" });
 
+    // Decrypt messages for the UI
     const decryptedMessages = messages.map((msg) => {
       const msgObj = msg.toObject();
       if (msgObj.text) {
@@ -42,7 +51,9 @@ export const getMessagesByUserId = async (req, res) => {
       if (msgObj.replyTo && msgObj.replyTo.text) {
         try {
           msgObj.replyTo.text = decryptMessage(msgObj.replyTo.text);
-        } catch (e) {}
+        } catch (e) {
+          console.error("Reply decryption failed");
+        }
       }
       return msgObj;
     });
@@ -54,6 +65,7 @@ export const getMessagesByUserId = async (req, res) => {
   }
 };
 
+// --- SEND MESSAGE (WITH ENCRYPTION & CLOUDINARY) ---
 export const sendMessage = async (req, res) => {
   try {
     const { text, image, replyTo } = req.body;
@@ -80,6 +92,7 @@ export const sendMessage = async (req, res) => {
       }
     }
 
+    // Encrypt text before saving to MongoDB
     const encryptedText = text ? encryptMessage(text) : null;
 
     const newMessage = new Message({
@@ -109,6 +122,7 @@ export const sendMessage = async (req, res) => {
   }
 };
 
+// --- GET CHAT PARTNERS (RECENT CHATS) ---
 export const getChatPartners = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
@@ -127,7 +141,11 @@ export const getChatPartners = async (req, res) => {
       ),
     ];
 
-    const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
+    // Filter: Only show verified partners in the active chat list
+    const chatPartners = await User.find({ 
+      _id: { $in: chatPartnerIds },
+      isVerified: true 
+    }).select("-password");
 
     const chatPartnersWithCounts = await Promise.all(
       chatPartners.map(async (partner) => {
@@ -147,6 +165,7 @@ export const getChatPartners = async (req, res) => {
   }
 };
 
+// --- MARK AS SEEN ---
 export const markMessagesAsSeen = async (req, res) => {
   try {
     const { id: userToChatId } = req.params;
@@ -163,7 +182,7 @@ export const markMessagesAsSeen = async (req, res) => {
   }
 };
 
-// NEW: React to a message
+// --- MESSAGE REACTIONS (SOCKET INTEGRATED) ---
 export const reactToMessage = async (req, res) => {
   try {
     const { id: messageId } = req.params;
@@ -178,7 +197,6 @@ export const reactToMessage = async (req, res) => {
     );
 
     if (existingReactionIndex > -1) {
-      // Toggle logic: If same emoji, remove it. If different, update it.
       if (message.reactions[existingReactionIndex].emoji === emoji) {
         message.reactions.splice(existingReactionIndex, 1);
       } else {
@@ -190,7 +208,6 @@ export const reactToMessage = async (req, res) => {
 
     await message.save();
 
-    // Broadcast the update via Socket
     const receiverId = message.senderId.equals(userId) ? message.receiverId : message.senderId;
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {
@@ -206,6 +223,7 @@ export const reactToMessage = async (req, res) => {
   }
 };
 
+// --- DELETE MESSAGE ---
 export const deleteMessage = async (req, res) => {
   try {
     const messageId = req.params.id;
