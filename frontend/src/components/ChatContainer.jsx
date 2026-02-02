@@ -31,6 +31,13 @@ function ChatContainer() {
   const [selectedImg, setSelectedImg] = useState(null);
   const [hoveredMessage, setHoveredMessage] = useState(null);
 
+  // Haptic Feedback Logic
+  const triggerHaptic = (pattern = 60) => {
+    if ("vibrate" in navigator) {
+      navigator.vibrate(pattern);
+    }
+  };
+
   useEffect(() => {
     getMessagesByUserId(selectedUser._id);
     subscribeToMessages();
@@ -41,7 +48,13 @@ function ChatContainer() {
     if (messageEndRef.current) {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+
+    // Trigger vibration for new incoming messages
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.senderId !== authUser._id) {
+      triggerHaptic();
+    }
+  }, [messages, authUser._id]);
 
   useEffect(() => {
     const handleEscape = (e) => {
@@ -61,7 +74,6 @@ function ChatContainer() {
     }
   };
 
-  // Predefined reactions for the tray
   const REACTION_OPTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
   return (
@@ -70,7 +82,7 @@ function ChatContainer() {
         <ChatHeader />
       </div>
 
-      <div className={`flex-1 min-h-0 overflow-y-auto p-4 space-y-6 custom-scrollbar ${isDarkMode ? 'bg-[url(\'/grid.svg\')] bg-fixed' : 'bg-gray-50'}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto p-4 space-y-8 custom-scrollbar ${isDarkMode ? 'bg-[url(\'/grid.svg\')] bg-fixed' : 'bg-gray-50'}`}>
         {messages.length > 0 && !isMessagesLoading ? (
           <>
             {messages.map((msg) => {
@@ -80,17 +92,20 @@ function ChatContainer() {
               return (
                 <div 
                   key={msg._id} 
-                  className={`flex ${isMe ? "justify-end" : "justify-start"} group/row relative`}
+                  className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/row relative mb-2`}
                   onMouseEnter={() => setHoveredMessage(msg._id)}
                   onMouseLeave={() => setHoveredMessage(null)}
                 >
                   {/* REACTION TRAY - Visible on hover */}
                   {!isMe && hoveredMessage === msg._id && (
-                    <div className={`absolute -top-8 left-0 flex gap-1 p-1 rounded-full shadow-2xl z-10 animate-in slide-in-from-bottom-2 duration-200 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-gray-300'}`}>
+                    <div className={`absolute -top-8 left-0 flex gap-1 p-1 rounded-full shadow-2xl z-30 animate-in slide-in-from-bottom-2 duration-200 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-gray-300'}`}>
                       {REACTION_OPTIONS.map((emoji) => (
                         <button
                           key={emoji}
-                          onClick={() => handleReaction(msg._id, emoji)}
+                          onClick={() => {
+                            handleReaction(msg._id, emoji);
+                            triggerHaptic(40); // Subtle tap on reacting
+                          }}
                           className="hover:scale-125 transition-transform px-1.5 py-0.5 text-lg"
                         >
                           {emoji}
@@ -99,68 +114,66 @@ function ChatContainer() {
                     </div>
                   )}
 
-                  <div
-                    onContextMenu={(e) => handleRightClick(e, msg)}
-                    className={`relative max-w-[80%] md:max-w-md p-3 rounded-2xl transition-all group ${
-                      isMe
-                        ? isDarkMode
-                          ? "bg-yellow-500 text-black rounded-tr-none shadow-[0_4px_20px_rgba(234,179,8,0.15)]"
-                          : "bg-blue-600 text-white rounded-tr-none shadow-[0_4px_20px_rgba(37,99,235,0.15)]"
-                        : isDarkMode
-                          ? "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none shadow-xl"
-                          : "bg-gray-200 border border-gray-300 text-gray-900 rounded-tl-none shadow-lg"
-                    }`}
-                  >
-                    {msg.image && (
-                      <div 
-                        className="relative mb-2 rounded-lg overflow-hidden cursor-zoom-in group/img"
-                        onClick={() => setSelectedImg(msg.image)}
-                      >
-                        <img src={msg.image} alt="Shared content" className="max-h-72 w-full object-cover transition-transform group-hover/img:scale-105" />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
-                          <Maximize2 className="size-6 text-white" />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {msg.text && <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>}
-                    
-                    {/* DISPLAY REACTIONS */}
-                    {hasReactions && (
-                      <div className={`flex flex-wrap gap-1 mt-2 ${isMe ? "justify-start" : "justify-end"}`}>
-                        {msg.reactions.map((reaction, index) => (
-                          <div 
-                            key={index} 
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              isMe
-                                ? isDarkMode
-                                  ? "bg-black/20 border-black/10 text-black"
-                                  : "bg-white/30 border-white/20 text-blue-600"
-                                : isDarkMode
-                                  ? "bg-zinc-800 border-zinc-700 text-yellow-500"
-                                  : "bg-gray-300 border-gray-400 text-gray-700"
-                            }`}
-                          >
-                            {reaction.emoji}
+                  <div className={`flex items-center gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                    <div
+                      onContextMenu={(e) => handleRightClick(e, msg)}
+                      className={`relative max-w-[80%] md:max-w-md p-3 rounded-2xl transition-all group ${
+                        isMe
+                          ? isDarkMode
+                            ? "bg-yellow-500 text-black rounded-tr-none shadow-[0_4px_20px_rgba(234,179,8,0.15)]"
+                            : "bg-blue-600 text-white rounded-tr-none shadow-[0_4px_20px_rgba(37,99,235,0.15)]"
+                          : isDarkMode
+                            ? "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none shadow-xl"
+                            : "bg-gray-200 border border-gray-300 text-gray-900 rounded-tl-none shadow-lg"
+                      }`}
+                    >
+                      {msg.image && (
+                        <div 
+                          className="relative mb-2 rounded-lg overflow-hidden cursor-zoom-in group/img"
+                          onClick={() => setSelectedImg(msg.image)}
+                        >
+                          <img src={msg.image} alt="Shared content" className="max-h-72 w-full object-cover transition-transform group-hover/img:scale-105" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                            <Maximize2 className="size-6 text-white" />
                           </div>
-                        ))}
+                        </div>
+                      )}
+                      
+                      {msg.text && <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>}
+                      
+                      <div className={`flex items-center gap-1 mt-1 justify-end opacity-60 text-[10px] font-bold uppercase tracking-tighter ${isMe ? (isDarkMode ? 'text-black/80' : 'text-blue-700/80') : (isDarkMode ? 'text-zinc-500' : 'text-gray-600')}`}>
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                    )}
 
-                    <div className={`flex items-center gap-1 mt-1 justify-end opacity-60 text-[10px] font-bold uppercase tracking-tighter ${isMe ? (isDarkMode ? 'text-black/80' : 'text-blue-700/80') : (isDarkMode ? 'text-zinc-500' : 'text-gray-600')}`}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {/* WHATSAPP STYLE REACTION BADGE - Floating on border */}
+                      {hasReactions && (
+                        <div className={`absolute -bottom-3 ${isMe ? "right-2" : "left-2"} flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-lg border z-20 scale-95 origin-center animate-in zoom-in-50 duration-200 ${
+                          isDarkMode ? "bg-zinc-800 border-zinc-700" : "bg-white border-gray-200"
+                        }`}>
+                          <div className="flex -space-x-1">
+                            {msg.reactions.slice(0, 3).map((reaction, index) => (
+                              <span key={index} className="text-xs drop-shadow-sm">{reaction.emoji}</span>
+                            ))}
+                          </div>
+                          {msg.reactions.length > 1 && (
+                            <span className={`text-[10px] font-bold ml-0.5 ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
+                              {msg.reactions.length}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  {/* Desktop Reaction Trigger (Optional Smiley Icon) */}
-                  {hoveredMessage === msg._id && !isMe && (
-                     <button 
-                       onClick={() => handleReaction(msg._id, "❤️")} // Quick heart reaction
-                       className={`self-center ml-2 p-1 transition-colors ${isDarkMode ? 'text-zinc-600 hover:text-yellow-500' : 'text-gray-500 hover:text-blue-600'}`}
-                     >
-                       <Smile className="size-4" />
-                     </button>
-                  )}
+                    {/* Desktop Reaction Trigger */}
+                    {hoveredMessage === msg._id && !isMe && (
+                       <button 
+                         onClick={() => handleReaction(msg._id, "❤️")}
+                         className={`p-1 transition-colors ${isDarkMode ? 'text-zinc-600 hover:text-yellow-500' : 'text-gray-500 hover:text-blue-600'}`}
+                       >
+                         <Smile className="size-4" />
+                       </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -188,7 +201,7 @@ function ChatContainer() {
         </div>
       )}
 
-      {/* Full Screen Image Overlay */}
+      {/* Image Overlay */}
       {selectedImg && (
         <div 
           className={`fixed inset-0 z-[999] backdrop-blur-md flex flex-col animate-in fade-in duration-300 ${isDarkMode ? 'bg-black/95' : 'bg-white/95'}`}
@@ -225,6 +238,7 @@ function ChatContainer() {
           y={contextMenu.y}
           onDelete={() => { deleteMessage(contextMenu.message._id); setContextMenu(null); }}
           onReply={() => { replyToMessage(contextMenu.message); setContextMenu(null); }}
+          onClose={() => setContextMenu(null)}
         />
       )}
     </div>
