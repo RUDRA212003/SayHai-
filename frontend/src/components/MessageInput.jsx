@@ -82,7 +82,7 @@ function MessageInput() {
   };
 
   return (
-    <div className={`w-full border-t p-4 relative z-30 ${isDarkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'}`}>
+    <div className={`w-full border-t p-4 sticky bottom-0 z-50 ${isDarkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'}`}>
       {showEmojiPicker && (
         <div 
           className="absolute bottom-20 left-4 z-[100] shadow-2xl animate-in fade-in slide-in-from-bottom-2" 
