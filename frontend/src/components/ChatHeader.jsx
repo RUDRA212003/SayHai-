@@ -52,7 +52,7 @@ function ChatHeader() {
   };
 
   return (
-    <header className={`sticky top-0 z-20 backdrop-blur-md px-4 py-3 flex justify-between items-center shadow-lg border-b ${isDarkMode ? 'bg-zinc-950/80 border-zinc-800' : 'bg-white/80 border-gray-200'}`}>
+    <header className={`sticky top-0 z-40 flex-none backdrop-blur-md px-4 py-3 flex justify-between items-center shadow-lg border-b ${isDarkMode ? 'bg-zinc-950/80 border-zinc-800' : 'bg-white/80 border-gray-200'}`}>
       {/* Left Section: User Info */}
       <div className="flex items-center gap-3 min-w-0">
         {/* Back Button for Mobile */}

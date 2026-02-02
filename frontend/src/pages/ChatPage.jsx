@@ -15,6 +15,7 @@ function ChatPage() {
   // Resizable state
   const [sidebarWidth, setSidebarWidth] = useState(320); // Default 320px
   const [isResizing, setIsResizing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const startResizing = useCallback(() => {
     setIsResizing(true);
@@ -38,9 +39,14 @@ function ChatPage() {
   useEffect(() => {
     window.addEventListener("mousemove", resize);
     window.addEventListener("mouseup", stopResizing);
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
     return () => {
       window.removeEventListener("mousemove", resize);
       window.removeEventListener("mouseup", stopResizing);
+      window.removeEventListener("resize", handleResize);
     };
   }, [resize, stopResizing]);
 
@@ -49,7 +55,7 @@ function ChatPage() {
       
       {/* LEFT SIDEBAR */}
       <div 
-        style={{ width: `${sidebarWidth}px` }} 
+        style={{ width: isMobile ? '100%' : `${sidebarWidth}px` }} 
         className={`${
           selectedUser ? "hidden md:flex" : "flex"
         } relative ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-50 border-gray-200'} border-r flex flex-col shrink-0 overflow-hidden transition-all duration-300`}
