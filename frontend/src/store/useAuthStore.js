@@ -9,34 +9,31 @@ export const useAuthStore = create((set, get) => ({
   isCheckingAuth: true,
   isSigningUp: false,
   isLoggingIn: false,
-  isVerifying: false, // New state for verification loading
+  isVerifying: false,
   socket: null,
   onlineUsers: [],
 
-  // ✅ CHECK AUTH
+  // ✅ CHECK AUTH - Verified fix for 404/401
   checkAuth: async () => {
     try {
       const res = await axiosInstance.get("/api/auth/check");
       set({ authUser: res.data });
       get().connectSocket();
     } catch (error) {
-      console.log("Error in authCheck:", error);
+      console.log("AuthCheck: User not logged in or session expired.");
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
     }
   },
 
-  // ✅ SIGNUP (Updated for Verification Flow)
+  // ✅ SIGNUP
   signup: async (data) => {
     set({ isSigningUp: true });
     try {
       const res = await axiosInstance.post("/api/auth/signup", data);
-      
-      // We don't set authUser here anymore because they aren't verified yet
-      toast.success(res.data.message || "Check your email to verify your account!");
-      
-      return true; // Return success to the component
+      toast.success(res.data.message || "Check your email to verify!");
+      return true;
     } catch (error) {
       toast.error(error?.response?.data?.message || "Signup failed");
       return false;
@@ -45,12 +42,12 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // ✅ VERIFY EMAIL (New Action)
+  // ✅ VERIFY EMAIL
   verifyEmail: async (token) => {
     set({ isVerifying: true });
     try {
       const res = await axiosInstance.get(`/api/auth/verify-email?token=${token}`);
-      toast.success(res.data.message || "Email verified! You can now login.");
+      toast.success(res.data.message || "Verified! You can now login.");
       return true;
     } catch (error) {
       toast.error(error?.response?.data?.message || "Verification failed");
@@ -66,7 +63,6 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/api/auth/login", data);
       set({ authUser: res.data });
-
       toast.success("Logged in successfully");
       get().connectSocket();
     } catch (error) {
@@ -94,9 +90,9 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.put("/api/auth/update-profile", data);
       set({ authUser: res.data });
-      toast.success("Profile updated successfully");
+      toast.success("Profile updated!");
     } catch (error) {
-      console.log("Error in update profile:", error);
+      console.log("Update error:", error);
       toast.error(error?.response?.data?.message || "Update failed");
     }
   },
@@ -112,42 +108,11 @@ export const useAuthStore = create((set, get) => ({
     });
 
     newSocket.connect();
+    set({ socket: newSocket });
 
     newSocket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
-
-      // If selected user went offline, refresh their info (to get updated lastSeen)
-      const selectedUser = useChatStore.getState().selectedUser;
-      if (selectedUser && !userIds.includes(selectedUser._id)) {
-        // Try fetching contacts and update selectedUser with latest metadata
-        axiosInstance
-          .get("/api/messages/contacts")
-          .then((res) => {
-            const found = Array.isArray(res.data) ? res.data.find((u) => u._id === selectedUser._id) : null;
-            if (found) {
-              useChatStore.setState({ selectedUser: found });
-            }
-          })
-          .catch(() => {});
-      }
     });
-
-    // Forward typing events to chat store so UI reacts even if message subscriptions weren't set yet
-    newSocket.on("userTyping", ({ senderId }) => {
-      const selected = useChatStore.getState().selectedUser;
-      if (selected && selected._id === senderId) {
-        useChatStore.setState({ isTyping: true });
-      }
-    });
-
-    newSocket.on("userStoppedTyping", ({ senderId }) => {
-      const selected = useChatStore.getState().selectedUser;
-      if (selected && selected._id === senderId) {
-        useChatStore.setState({ isTyping: false });
-      }
-    });
-
-    set({ socket: newSocket });
   },
 
   // ✅ SOCKET DISCONNECT
