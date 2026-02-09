@@ -1,26 +1,32 @@
 import crypto from "crypto";
 import { ENV } from "./env.js";
 
-const ENCRYPTION_KEY = ENV.ENCRYPTION_KEY || "your-default-secret-key-change-this-in-env";
+const ENCRYPTION_KEY =
+  ENV.ENCRYPTION_KEY || "your-default-secret-key-change-this-in-env";
+
 const ALGORITHM = "aes-256-gcm";
 
-// Ensure key is 32 bytes for aes-256
+// Ensure key is exactly 32 bytes for AES-256
 const getEncryptionKey = () => {
   let key = ENCRYPTION_KEY;
+
   if (key.length < 32) {
     key = key.padEnd(32, "0");
   } else if (key.length > 32) {
     key = key.slice(0, 32);
   }
+
   return Buffer.from(key);
 };
 
+// -------------------- ENCRYPT --------------------
 export const encryptMessage = (text) => {
   if (!text) return null;
 
   try {
     const iv = crypto.randomBytes(16);
     const key = getEncryptionKey();
+
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
     let encrypted = cipher.update(text, "utf8", "hex");
@@ -28,33 +34,29 @@ export const encryptMessage = (text) => {
 
     const authTag = cipher.getAuthTag();
 
-    // Return iv:encrypted:authTag combined
+    // FORMAT: iv:encrypted:authTag
     return `${iv.toString("hex")}:${encrypted}:${authTag.toString("hex")}`;
-  } catch (error) {
-    console.error("Encryption error:", error);
-    throw new Error("Failed to encrypt message");
+  } catch {
+    // Fail-safe: never crash chat
+    return text;
   }
 };
 
-export const decryptMessage = (encryptedData) => {
-  if (!encryptedData) return null;
-
+// -------------------- DECRYPT --------------------
+export const decryptMessage = (payload) => {
   try {
-    // Check if data is in encrypted format (contains colons)
-    if (!encryptedData.includes(":")) {
-      // It's plain text, return as is
-      return encryptedData;
-    }
+    if (!payload || typeof payload !== "string") return payload;
 
-    const parts = encryptedData.split(":");
-    if (parts.length !== 3) {
-      // Invalid format, return as plain text
-      return encryptedData;
-    }
+    const parts = payload.split(":");
 
-    const iv = Buffer.from(parts[0], "hex");
-    const encrypted = parts[1];
-    const authTag = Buffer.from(parts[2], "hex");
+    // Legacy or plain text message
+    if (parts.length !== 3) return payload;
+
+    // MUST match encrypt order
+    const [ivHex, encrypted, authTagHex] = parts;
+
+    const iv = Buffer.from(ivHex, "hex");
+    const authTag = Buffer.from(authTagHex, "hex");
     const key = getEncryptionKey();
 
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
@@ -64,10 +66,8 @@ export const decryptMessage = (encryptedData) => {
     decrypted += decipher.final("utf8");
 
     return decrypted;
-  } catch (error) {
-    console.error("Decryption error:", error);
-    // If decryption fails, return the original data as plain text
-    // This handles old unencrypted messages
-    return encryptedData;
+  } catch {
+    // Old/broken messages → return as-is, no logs, no crash
+    return payload;
   }
 };

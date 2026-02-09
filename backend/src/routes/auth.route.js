@@ -1,10 +1,16 @@
 import express from "express";
-import { 
-  signup, login, logout, updateProfile, 
-  verifyEmail, checkAuth, getAllUsers, toggleBlockUser 
-} from "../controllers/auth.controller.js"; 
+import {
+  signup,
+  login,
+  logout,
+  updateProfile,
+  verifyEmail,
+  checkAuth,
+  getAllUsers,
+  toggleBlockUser,
+} from "../controllers/auth.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
-import { isAdmin } from "../middleware/admin.middleware.js"; // Import the new middleware
+import { isAdmin } from "../middleware/admin.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
 
 const router = express.Router();
@@ -19,11 +25,8 @@ router.get("/verify-email", verifyEmail);
 router.put("/update-profile", protectRoute, updateProfile);
 router.get("/check", protectRoute, checkAuth);
 
-// --- ADMIN PANEL ROUTES ---
-// Get all users to display in your admin table
+// Admin
 router.get("/admin/users", protectRoute, isAdmin, getAllUsers);
-
-// Block or Unblock a specific user by their ID
 router.put("/admin/users/:id/block", protectRoute, isAdmin, toggleBlockUser);
 
 export default router;

@@ -2,10 +2,10 @@ import { create } from "zustand";
 import { axiosInstance, socketBaseUrl } from "../lib/axios";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
-import { useChatStore } from "./useChatStore";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
+  needsProfileUpdate: false, // ✅ STEP 1 FLAG
   isCheckingAuth: true,
   isSigningUp: false,
   isLoggingIn: false,
@@ -13,15 +13,20 @@ export const useAuthStore = create((set, get) => ({
   socket: null,
   onlineUsers: [],
 
-  // ✅ CHECK AUTH - Verified fix for 404/401
+  // ✅ CHECK AUTH
   checkAuth: async () => {
     try {
       const res = await axiosInstance.get("/api/auth/check");
-      set({ authUser: res.data });
+      const user = res.data;
+
+      set({
+        authUser: user,
+        needsProfileUpdate: !user.profilePic || user.profilePic === "",
+      });
+
       get().connectSocket();
     } catch (error) {
-      console.log("AuthCheck: User not logged in or session expired.");
-      set({ authUser: null });
+      set({ authUser: null, needsProfileUpdate: false });
     } finally {
       set({ isCheckingAuth: false });
     }
@@ -62,7 +67,13 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoggingIn: true });
     try {
       const res = await axiosInstance.post("/api/auth/login", data);
-      set({ authUser: res.data });
+      const user = res.data;
+
+      set({
+        authUser: user,
+        needsProfileUpdate: !user.profilePic || user.profilePic === "",
+      });
+
       toast.success("Logged in successfully");
       get().connectSocket();
     } catch (error) {
@@ -76,26 +87,40 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     try {
       await axiosInstance.post("/api/auth/logout");
-      set({ authUser: null });
+      set({ authUser: null, needsProfileUpdate: false });
       toast.success("Logged out successfully");
       get().disconnectSocket();
     } catch (error) {
       toast.error("Error logging out");
-      console.log("Logout error:", error);
     }
   },
 
-  // ✅ UPDATE PROFILE
-  updateProfile: async (data) => {
-    try {
-      const res = await axiosInstance.put("/api/auth/update-profile", data);
-      set({ authUser: res.data });
-      toast.success("Profile updated!");
-    } catch (error) {
-      console.log("Update error:", error);
-      toast.error(error?.response?.data?.message || "Update failed");
+  // ✅ UPDATE PROFILE (IMPORTANT)
+ // ✅ UPDATE PROFILE (PIC + NAME + PASSWORD)
+updateProfile: async (data) => {
+  try {
+    const res = await axiosInstance.put("/api/auth/update-profile", data);
+
+    // clear popup dismissal when profile pic is uploaded
+    if (res.data.profilePic) {
+      sessionStorage.removeItem("profilePicPromptDismissed");
     }
-  },
+
+    set((state) => ({
+      authUser: {
+        ...state.authUser,
+        ...res.data,
+      },
+      needsProfileUpdate: !res.data.profilePic,
+    }));
+
+    toast.success("Profile updated successfully!");
+  } catch (error) {
+    toast.error(error?.response?.data?.message || "Profile update failed");
+  }
+},
+
+
 
   // ✅ SOCKET CONNECT
   connectSocket: () => {

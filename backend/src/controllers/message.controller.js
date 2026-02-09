@@ -129,41 +129,57 @@ export const getChatPartners = async (req, res) => {
 
     const messages = await Message.find({
       $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
-    });
+    }).sort({ createdAt: -1 });
 
-    const chatPartnerIds = [
-      ...new Set(
-        messages.map((msg) =>
-          msg.senderId.toString() === loggedInUserId.toString()
-            ? msg.receiverId.toString()
-            : msg.senderId.toString()
-        )
-      ),
-    ];
+    const partnerMap = new Map();
 
-    // Filter: Only show verified partners in the active chat list
-    const chatPartners = await User.find({ 
-      _id: { $in: chatPartnerIds },
-      isVerified: true 
+    for (const msg of messages) {
+      const partnerId =
+        msg.senderId.toString() === loggedInUserId.toString()
+          ? msg.receiverId.toString()
+          : msg.senderId.toString();
+
+      if (!partnerMap.has(partnerId)) {
+        partnerMap.set(partnerId, msg);
+      }
+    }
+
+    const partners = await User.find({
+      _id: { $in: [...partnerMap.keys()] },
+      isVerified: true,
     }).select("-password");
 
     const chatPartnersWithCounts = await Promise.all(
-      chatPartners.map(async (partner) => {
+      partners.map(async (partner) => {
         const unreadCount = await Message.countDocuments({
           senderId: partner._id,
           receiverId: loggedInUserId,
           isSeen: false,
         });
 
-        return { ...partner.toObject(), unreadCount };
+        const lastMessage = partnerMap.get(partner._id.toString());
+        let lastMessageText = null;
+
+        if (lastMessage?.text) {
+          lastMessageText = decryptMessage(lastMessage.text);
+        }
+
+        return {
+          ...partner.toObject(),
+          unreadCount,
+          lastMessage: lastMessageText,
+          lastMessageAt: lastMessage?.createdAt,
+        };
       })
     );
 
     res.status(200).json(chatPartnersWithCounts);
   } catch (error) {
+    console.error("Error in getChatPartners:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 // --- MARK AS SEEN ---
 export const markMessagesAsSeen = async (req, res) => {

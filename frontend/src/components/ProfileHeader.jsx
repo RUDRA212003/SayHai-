@@ -4,13 +4,17 @@ import Cropper from "react-easy-crop";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useNavigate } from "react-router";
+
 
 const mouseClickSound = new Audio("/sounds/mouse-click.mp3");
 
 function ProfileHeader() {
-  const { logout, authUser, updateProfile } = useAuthStore();
+  const { logout, authUser, updateProfile, needsProfileUpdate } = useAuthStore();
   const { isSoundEnabled, toggleSound } = useChatStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
+  const navigate = useNavigate();
+
   
   // States for Image & Cropping
   const [imageToCrop, setImageToCrop] = useState(null);
@@ -48,9 +52,13 @@ function ProfileHeader() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="relative group">
+            {needsProfileUpdate && (
+  <span className="absolute -top-1 -right-1 size-3 rounded-full bg-red-500 animate-ping" />
+)}
+
             <button
               className={`size-14 rounded-full overflow-hidden relative ring-2 ${isDarkMode ? 'ring-zinc-800 group-hover:ring-yellow-500' : 'ring-gray-200 group-hover:ring-blue-500'} transition-all duration-300`}
-              onClick={() => fileInputRef.current.click()}
+             onClick={() => navigate("/profile")}
             >
               <img
                 src={authUser.profilePic || "/avatar.png"}
@@ -59,7 +67,7 @@ function ProfileHeader() {
               />
               <div className={`absolute inset-0 ${isDarkMode ? 'bg-black/60' : 'bg-gray-900/60'} opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all duration-300`}>
                 <Camera className={`size-4 ${isDarkMode ? 'text-yellow-500' : 'text-blue-400'} mb-0.5`} />
-                <span className={`text-[8px] font-black uppercase tracking-tighter ${isDarkMode ? 'text-yellow-500' : 'text-blue-400'}`}>Edit</span>
+                <span className={`text-[8px] font-black uppercase tracking-tighter ${isDarkMode ? 'text-yellow-500' : 'text-blue-400'}`}>Profile</span>
               </div>
             </button>
             <div className={`absolute bottom-0 right-0 size-3.5 ${isDarkMode ? 'bg-yellow-500 border-zinc-950' : 'bg-blue-500 border-white'} border-2 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]`} />

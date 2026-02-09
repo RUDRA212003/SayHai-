@@ -9,6 +9,9 @@ import { useEffect } from "react";
 import PageLoader from "./components/PageLoader";
 import { Toaster } from "react-hot-toast";
 import AdminPanel from "./pages/AdminPanel";
+import ProfilePicPrompt from "./components/ProfilePicPrompt";
+import ProfilePage from "./pages/ProfilePage";
+
 
 function App() {
   const { checkAuth, isCheckingAuth, authUser } = useAuthStore();
@@ -16,7 +19,7 @@ function App() {
 
   useEffect(() => {
     // Initialize theme first so there's no "white flash"
-    initTheme(); 
+    initTheme();
     // Verify session with the backend
     checkAuth();
   }, [checkAuth, initTheme]);
@@ -29,48 +32,56 @@ function App() {
   if (isCheckingAuth && !authUser) return <PageLoader />;
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode 
-        ? 'bg-zinc-950 selection:bg-yellow-500/30 selection:text-yellow-200' 
+    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode
+        ? 'bg-zinc-950 selection:bg-yellow-500/30 selection:text-yellow-200'
         : 'bg-white selection:bg-blue-100 selection:text-blue-900'
-    }`}>
-      
+      }`}>
+      {authUser && <ProfilePicPrompt />}
+
+
       <Routes>
         {/* Main Chat Route: Only accessible if authUser exists */}
-        <Route 
-          path="/" 
-          element={authUser ? <ChatPage /> : <Navigate to="/login" />} 
+        <Route
+          path="/"
+          element={authUser ? <ChatPage /> : <Navigate to="/login" />}
         />
 
         {/* Auth Routes: Only accessible if NOT logged in */}
-        <Route 
-          path="/login" 
-          element={!authUser ? <LoginPage /> : <Navigate to="/" />} 
+        <Route
+          path="/login"
+          element={!authUser ? <LoginPage /> : <Navigate to="/" />}
         />
-        <Route 
-          path="/signup" 
-          element={!authUser ? <SignUpPage /> : <Navigate to="/" />} 
+        <Route
+          path="/signup"
+          element={!authUser ? <SignUpPage /> : <Navigate to="/" />}
         />
-        
+
         {/* Verification Route: Accessible to anyone with a token link */}
         <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* Admin Route: Requires authUser AND admin role */}
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
-            authUser?.role === "admin" 
-              ? <AdminPanel /> 
+            authUser?.role === "admin"
+              ? <AdminPanel />
               : <Navigate to="/" />
-          } 
+          }
         />
+
+        <Route
+          path="/profile"
+          element={authUser ? <ProfilePage /> : <Navigate to="/login" />}
+        />
+
 
         {/* Catch-all: Redirect to home */}
         <Route path="*" element={<Navigate to="/" />} />
+
       </Routes>
 
-      <Toaster 
-        position="top-center" 
+      <Toaster
+        position="top-center"
         toastOptions={{
           style: {
             background: isDarkMode ? '#09090b' : '#ffffff',
@@ -82,8 +93,8 @@ function App() {
             letterSpacing: '0.1em',
             borderRadius: '12px',
             padding: '12px 16px',
-            boxShadow: isDarkMode 
-              ? '0 20px 40px -10px rgba(0,0,0,0.7)' 
+            boxShadow: isDarkMode
+              ? '0 20px 40px -10px rgba(0,0,0,0.7)'
               : '0 20px 40px -10px rgba(0,0,0,0.15)',
           },
           success: {
@@ -92,8 +103,8 @@ function App() {
               secondary: isDarkMode ? '#09090b' : '#ffffff',
             },
             style: {
-              border: isDarkMode 
-                ? '1px solid rgba(234, 179, 8, 0.2)' 
+              border: isDarkMode
+                ? '1px solid rgba(234, 179, 8, 0.2)'
                 : '1px solid rgba(34, 197, 94, 0.2)',
             },
           },
